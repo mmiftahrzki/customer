@@ -12,6 +12,7 @@ require (
 require (
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/mmiftahrzki/go-rest-api v0.0.0-20241123170754-b9abb0bd8839
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
 	golang.org/x/crypto v0.32.0
 )
