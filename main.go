@@ -2,29 +2,31 @@ package main
 
 import (
 	_ "embed"
-	"log"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/app"
 	"github.com/mmiftahrzki/customer/config"
 	"github.com/mmiftahrzki/customer/database"
+	"github.com/mmiftahrzki/customer/logger"
 )
 
 func main() {
+	logger := logger.GetLogger()
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatalln(err)
 	}
 
-	db, err := database.GetDatabaseConnection(cfg.Database)
+	db, err := database.New(cfg.Database)
 	if err != nil {
-		log.Fatalf("Database Error: %v\n", err)
+		logger.Fatalf("Database Error: %v\n", err)
 	}
 	defer db.Close()
 
 	app := app.New(cfg.App, db)
 	if app.Run(); err != nil {
-		log.Fatalln(err)
+		logger.Panic(err)
 	}
 
 	// router.HandleFunc("GET /api/top-secert", nil)

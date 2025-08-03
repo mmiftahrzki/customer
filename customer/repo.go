@@ -8,17 +8,21 @@ import (
 	"time"
 
 	"github.com/mmiftahrzki/customer/customer/address"
+	"github.com/mmiftahrzki/customer/logger"
+	"github.com/sirupsen/logrus"
 )
 
 const LIMIT int = 25
 
 type repo struct {
-	DB *sql.DB
+	db  *sql.DB
+	log *logrus.Entry
 }
 
 func newRepo(db *sql.DB) *repo {
 	return &repo{
-		DB: db,
+		db:  db,
+		log: logger.GetLogger().WithField("component", "customer_repo"),
 	}
 }
 
@@ -48,7 +52,7 @@ func (r *repo) SelectAll(ctx context.Context) ([]Customer, error) {
 		ORDER BY a.customer_id ASC
 		LIMIT ?`
 
-	rows, err := r.DB.QueryContext(ctx, sql_query, LIMIT+1)
+	rows, err := r.db.QueryContext(ctx, sql_query, LIMIT+1)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +127,7 @@ func (r *repo) SelectAll(ctx context.Context) ([]Customer, error) {
 		models = append(models, model)
 	}
 
+	r.log.Info("customers data successfully retrieved from database")
 	return models, nil
 }
 
@@ -153,7 +158,7 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer Customer) ([]Customer
 		ORDER BY a.customer_id ASC
 		LIMIT ?`
 
-	rows, err := r.DB.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
+	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +262,7 @@ func (r *repo) SelectAllNext(ctx context.Context, customer Customer) ([]Customer
 		ORDER BY a.customer_id ASC
 		LIMIT ?`
 
-	rows, err := r.DB.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
+	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +362,7 @@ func (r *repo) SelectSingleById(ctx context.Context, id uint) (Customer, error) 
 			JOIN address b ON b.address_id = a.address_id
 		WHERE a.active = true
 			AND a.customer_id = ?`
-	rows, err := r.DB.QueryContext(ctx, sql_query, id)
+	rows, err := r.db.QueryContext(ctx, sql_query, id)
 	if err != nil {
 		return model, err
 	}
@@ -462,7 +467,7 @@ func (r *repo) UpdateSingleById(ctx context.Context, id uint, payload CustomerUp
 	struct_fields = append(struct_fields, id)
 
 	sql_query := fmt.Sprintf("UPDATE customer SET %s WHERE customer_id = ?", fields_string)
-	_, err := r.DB.ExecContext(ctx, sql_query, struct_fields...)
+	_, err := r.db.ExecContext(ctx, sql_query, struct_fields...)
 	if err != nil {
 		return err
 	}
@@ -471,7 +476,7 @@ func (r *repo) UpdateSingleById(ctx context.Context, id uint, payload CustomerUp
 }
 
 func (r *repo) DeleteSingleById(ctx context.Context, id uint) error {
-	tx, err := r.DB.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
 	}
@@ -495,7 +500,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) er
 	now := time.Now().In(loc)
 
 	sql_query := `
-		INSERT INTO customer(
+		INSERT INTO customer (
 				first_name,
 				last_name,
 				email,
@@ -505,7 +510,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) er
 			)
 		VALUES (?, ?, ?, ?, ?, ?)`
 
-	tx, err := r.DB.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not begin a transacation: %w", err)
 	}
@@ -555,7 +560,7 @@ func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint8, pa
 	struct_fields = append(struct_fields, id)
 
 	sql_query := fmt.Sprintf("UPDATE address SET %s WHERE address_id = ?", fields_string)
-	_, err := r.DB.ExecContext(ctx, sql_query, struct_fields...)
+	_, err := r.db.ExecContext(ctx, sql_query, struct_fields...)
 	if err != nil {
 		return err
 	}

@@ -7,3 +7,5 @@ Showing everyone that I can build RESTful API using Go programming language.
 - Add Authentication;
 - Add Authorization;
 - Add Logging;
+  - Currently just installed logrus. Next, need to learn how logging should be implemented in API-based applications, logs are still written to
+    the os.Stdout.

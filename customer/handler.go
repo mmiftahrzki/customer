@@ -3,23 +3,26 @@ package customer
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 	"strconv"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/customer/address"
+	"github.com/mmiftahrzki/customer/logger"
 	"github.com/mmiftahrzki/customer/response"
+	"github.com/sirupsen/logrus"
 )
 
 type handler struct {
 	repo *repo
+	log  *logrus.Entry
 }
 
 func newHandler(repo *repo) *handler {
 	return &handler{
 		repo: repo,
+		log:  logger.GetLogger().WithField("component", "customer_handler"),
 	}
 }
 
@@ -32,7 +35,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&payload)
 	if err != nil {
-		log.Println(err)
+		logger.Logger.Error(err)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -42,7 +45,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 
 	err = h.repo.InsertSingle(r.Context(), payload)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		mysql_error, ok := err.(*mysql.MySQLError)
 		if ok {
@@ -80,7 +83,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 
 	customers, err := h.repo.SelectAll(r.Context())
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(response.ToJson()))
@@ -99,6 +102,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response.ToJson())
+	h.log.Info("customers data retrieved successfully")
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +121,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 
 	customer, err := h.repo.SelectSingleById(r.Context(), id)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -148,7 +152,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = "id tidak valid"
 
@@ -161,7 +165,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 
 	customer, err := h.repo.SelectSingleById(r.Context(), id)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -181,7 +185,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 
 	customers, err := h.repo.SelectAllNext(r.Context(), customer)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -209,7 +213,7 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = "id tidak valid"
 
@@ -222,7 +226,7 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 
 	customer, err := h.repo.SelectSingleById(r.Context(), id)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -242,7 +246,7 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 
 	customers, err := h.repo.SelectAllPrev(r.Context(), customer)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -274,7 +278,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = "id tidak valid"
 
@@ -289,7 +293,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&payload)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = http.StatusText(http.StatusBadRequest)
 
@@ -302,7 +306,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 
 	err = h.repo.UpdateSingleById(r.Context(), id, payload)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		mysql_error, ok := err.(*mysql.MySQLError)
 		if ok {
@@ -346,7 +350,7 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 
 	err = h.repo.DeleteSingleById(r.Context(), id)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -364,7 +368,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = "id tidak valid"
 
@@ -377,7 +381,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 
 	customer, err := h.repo.SelectSingleById(r.Context(), id)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = http.StatusText(http.StatusNotFound)
 
@@ -392,7 +396,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&payload)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		res.Message = http.StatusText(http.StatusBadRequest)
 
@@ -405,7 +409,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 
 	err = h.repo.UpdateSingleAddressByCustomerId(r.Context(), customer.Address.Id, payload)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		mysql_error, ok := err.(*mysql.MySQLError)
 		if ok {
@@ -436,8 +440,6 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 func parseIdStringToUint(id_str string) (uint, error) {
 	id_uint64, err := strconv.ParseUint(id_str, 10, 64)
 	if err != nil {
-		log.Println(err)
-
 		return 0, err
 	}
 
