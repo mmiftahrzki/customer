@@ -26,10 +26,10 @@ func newRepo(db *sql.DB) *repo {
 	}
 }
 
-func (r *repo) SelectAll(ctx context.Context) ([]Customer, error) {
+func (r *repo) SelectAll(ctx context.Context) ([]CustomerReadModel, error) {
 	var entity CustomerSql
-	var model Customer
-	var models []Customer
+	var model CustomerReadModel
+	var models []CustomerReadModel
 	var sql_address address.AddressSql
 
 	sql_query := `
@@ -131,11 +131,11 @@ func (r *repo) SelectAll(ctx context.Context) ([]Customer, error) {
 	return models, nil
 }
 
-func (r *repo) SelectAllPrev(ctx context.Context, customer Customer) ([]Customer, error) {
-	var model Customer
+func (r *repo) SelectAllPrev(ctx context.Context, customer CustomerReadModel) ([]CustomerReadModel, error) {
+	var model CustomerReadModel
 	var entity CustomerSql
 	var entity_address address.AddressSql
-	var models []Customer
+	var models []CustomerReadModel
 
 	sql_query := `
 		SELECT a.customer_id,
@@ -235,11 +235,11 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer Customer) ([]Customer
 	return models, nil
 }
 
-func (r *repo) SelectAllNext(ctx context.Context, customer Customer) ([]Customer, error) {
-	var model Customer
+func (r *repo) SelectAllNext(ctx context.Context, customer CustomerReadModel) ([]CustomerReadModel, error) {
+	var model CustomerReadModel
 	var entity CustomerSql
 	var entity_address address.AddressSql
-	var models []Customer
+	var models []CustomerReadModel
 
 	sql_query := `
 		SELECT a.customer_id,
@@ -339,9 +339,9 @@ func (r *repo) SelectAllNext(ctx context.Context, customer Customer) ([]Customer
 	return models, nil
 }
 
-func (r *repo) SelectSingleById(ctx context.Context, id uint) (Customer, error) {
+func (r *repo) SelectSingleById(ctx context.Context, id uint) (CustomerReadModel, error) {
 	var entity CustomerSql
-	var model Customer
+	var model CustomerReadModel
 	var sql_address address.AddressSql
 
 	sql_query := `
