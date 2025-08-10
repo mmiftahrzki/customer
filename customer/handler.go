@@ -10,7 +10,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
-	"github.com/mmiftahrzki/customer/response"
+	"github.com/mmiftahrzki/customer/model"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,14 +27,20 @@ func newHandler(repo *repo) *handler {
 }
 
 func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
-
-	// new_customer, err := validation.ExtractCustomerFromContext(r.Context())
-
+	response_data := model.NewReadModel()
 	payload := CustomerCreateModel{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&payload)
 	if err != nil {
+		logger.Logger.Error(err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	if !Validate(payload) {
 		logger.Logger.Error(err)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -50,11 +56,11 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 		mysql_error, ok := err.(*mysql.MySQLError)
 		if ok {
 			if mysql_error.Number == 1062 {
-				res.Message = fmt.Sprintf("customer dengan email: %s sudah ada", payload.Email)
+				response_data.Message = fmt.Sprintf("customer dengan email: %s sudah ada", payload.Email)
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusConflict)
-				w.Write(res.ToJson())
+				w.Write(response_data.ToJson())
 
 				return
 			}
@@ -66,10 +72,10 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res.Message = "berhasil membuat customer baru"
+	response_data.Message = "berhasil membuat customer baru"
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(res.ToJson()))
+	w.Write([]byte(response_data.ToJson()))
 }
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +85,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := response.New()
+	response := model.NewReadModel()
 
 	customers, err := h.repo.SelectAll(r.Context())
 	if err != nil {
@@ -106,7 +112,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
+	res := model.NewReadModel()
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
@@ -129,7 +135,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	empty_customer := Customer{}
+	empty_customer := CustomerReadModel{}
 	if customer == empty_customer {
 		res.Message = fmt.Sprintf("customer dengan id: %d tidak ditemukan", id)
 
@@ -148,7 +154,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
+	res := model.NewReadModel()
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
@@ -209,7 +215,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
+	res := model.NewReadModel()
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
@@ -274,7 +280,7 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 	var err error
-	res := response.New()
+	res := model.NewReadModel()
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
@@ -300,6 +306,15 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
+
+		return
+	}
+
+	if !Validate(payload) {
+		logger.Logger.Error(err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
@@ -335,7 +350,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
+	res := model.NewReadModel()
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
 	if err != nil {
@@ -363,7 +378,7 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.Request) {
-	res := response.New()
+	res := model.NewReadModel()
 	var err error
 
 	id, err := parseIdStringToUint(r.PathValue("id"))
