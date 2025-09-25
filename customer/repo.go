@@ -26,11 +26,8 @@ func newRepo(db *sql.DB) *repo {
 	}
 }
 
-func (r *repo) SelectAll(ctx context.Context) ([]CustomerReadModel, error) {
-	var entity CustomerSql
-	var model CustomerReadModel
-	var models []CustomerReadModel
-	var sql_address address.AddressSql
+func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, err error) {
+	var sql_model customerSQLModel
 
 	sql_query := `
 		SELECT a.customer_id,
@@ -60,189 +57,95 @@ func (r *repo) SelectAll(ctx context.Context) ([]CustomerReadModel, error) {
 
 	for rows.Next() {
 		err = rows.Scan(
-			&entity.customer_id,
-			&entity.email,
-			&entity.first_name,
-			&entity.last_name,
-			&entity.address_id,
-			&entity.active,
-			&entity.create_date,
-			&sql_address.AddressId,
-			&sql_address.Address,
-			&sql_address.Address2,
-			&sql_address.District,
-			&sql_address.CityId,
-			&sql_address.PostalCode,
+			&sql_model.customer_id,
+			&sql_model.email,
+			&sql_model.first_name,
+			&sql_model.last_name,
+			&sql_model.address_id,
+			&sql_model.active,
+			&sql_model.create_date,
+			&sql_model.address.AddressId,
+			&sql_model.address.Address,
+			&sql_model.address.Address2,
+			&sql_model.address.District,
+			&sql_model.address.CityId,
+			&sql_model.address.PostalCode,
 		)
+
 		if err != nil {
 			return nil, err
 		}
 
-		if entity.customer_id.Valid {
-			model.Id = uint8(entity.customer_id.Int16)
-		}
-
-		if entity.email.Valid {
-			model.Email = entity.email.String
-		}
-
-		if entity.first_name.Valid {
-			model.FullName = entity.first_name.String
-		}
-
-		if entity.last_name.Valid {
-			if len(model.FullName) > 0 {
-				model.FullName += " " + entity.last_name.String
-			}
-		}
-
-		if entity.address_id.Valid {
-			model.Address.Id = uint8(entity.address_id.Int16)
-		}
-
-		if sql_address.Address.Valid {
-			model.Address.Address = sql_address.Address.String
-		}
-
-		if sql_address.Address2.Valid {
-			model.Address.Address2 = sql_address.Address2.String
-		}
-
-		if sql_address.District.Valid {
-			model.Address.District = sql_address.District.String
-		}
-
-		if sql_address.CityId.Valid {
-			model.Address.CityId = uint8(sql_address.CityId.Int16)
-		}
-
-		if sql_address.PostalCode.Valid {
-			model.Address.PostalCode = sql_address.PostalCode.String
-		}
-
-		if entity.create_date.Valid {
-			model.CreatedAt = entity.create_date.Time
-		}
-
-		models = append(models, model)
+		sql_models = append(sql_models, sql_model)
 	}
 
 	r.log.Info("customers data successfully retrieved from database")
-	return models, nil
+
+	return sql_models, nil
 }
 
-func (r *repo) SelectAllPrev(ctx context.Context, customer CustomerReadModel) ([]CustomerReadModel, error) {
-	var model CustomerReadModel
-	var entity CustomerSql
-	var entity_address address.AddressSql
-	var models []CustomerReadModel
+// func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
+// 	var sql_model customerSQLModel
 
-	sql_query := `
-		SELECT a.customer_id,
-			a.email,
-			a.first_name,
-			a.last_name,
-			a.address_id,
-			a.active,
-			a.create_date,
-			b.address_id,
-			b.address,
-			b.address2,
-			b.district,
-			b.city_id,
-			b.postal_code
-		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
-		WHERE a.active = true
-			AND a.customer_id < ?
-		ORDER BY a.customer_id ASC
-		LIMIT ?`
+// 	sql_query := `
+// 		SELECT a.customer_id,
+// 			a.email,
+// 			a.first_name,
+// 			a.last_name,
+// 			a.address_id,
+// 			a.active,
+// 			a.create_date,
+// 			b.address_id,
+// 			b.address,
+// 			b.address2,
+// 			b.district,
+// 			b.city_id,
+// 			b.postal_code
+// 		FROM customer a
+// 			JOIN address b ON b.address_id = a.address_id
+// 		WHERE a.active = true
+// 			AND a.customer_id < ?
+// 		ORDER BY a.customer_id ASC
+// 		LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+// 	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
 
-	for rows.Next() {
-		err = rows.Scan(
-			&entity.customer_id,
-			&entity.email,
-			&entity.first_name,
-			&entity.last_name,
-			&entity.address_id,
-			&entity.active,
-			&entity.create_date,
-			&entity_address.AddressId,
-			&entity_address.Address,
-			&entity_address.Address2,
-			&entity_address.District,
-			&entity_address.CityId,
-			&entity_address.PostalCode,
-		)
+// 	for rows.Next() {
+// 		err = rows.Scan(
+// 			&sql_model.customer_id,
+// 			&sql_model.email,
+// 			&sql_model.first_name,
+// 			&sql_model.last_name,
+// 			&sql_model.address_id,
+// 			&sql_model.active,
+// 			&sql_model.create_date,
+// 			&sql_model.address.AddressId,
+// 			&sql_model.address.Address,
+// 			&sql_model.address.Address2,
+// 			&sql_model.address.District,
+// 			&sql_model.address.CityId,
+// 			&sql_model.address.PostalCode,
+// 		)
 
-		if err != nil {
-			return nil, err
-		}
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		if entity.customer_id.Valid {
-			model.Id = uint8(entity.customer_id.Int16)
-		}
+// 		sql_models = append(sql_models, sql_model)
+// 	}
 
-		if entity.email.Valid {
-			model.Email = entity.email.String
-		}
+// 	return sql_models, nil
+// }
 
-		if entity.first_name.Valid {
-			model.FullName = entity.first_name.String
-		}
+func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
+	var sql_model customerSQLModel
 
-		if entity.last_name.Valid {
-			model.FullName += " " + entity.last_name.String
-		}
-
-		if entity.address_id.Valid {
-			model.Address.Id = uint8(entity.address_id.Int16)
-		}
-
-		if entity_address.Address.Valid {
-			model.Address.Address = entity_address.Address.String
-		}
-
-		if entity_address.Address2.Valid {
-			model.Address.Address2 = entity_address.Address2.String
-		}
-
-		if entity_address.District.Valid {
-			model.Address.District = entity_address.District.String
-		}
-
-		if entity_address.CityId.Valid {
-			model.Address.CityId = uint8(entity_address.CityId.Int16)
-		}
-
-		if entity_address.PostalCode.Valid {
-			model.Address.PostalCode = entity_address.PostalCode.String
-		}
-
-		if entity.create_date.Valid {
-			model.CreatedAt = entity.create_date.Time
-		}
-
-		models = append(models, model)
-	}
-
-	return models, nil
-}
-
-func (r *repo) SelectAllNext(ctx context.Context, customer CustomerReadModel) ([]CustomerReadModel, error) {
-	var model CustomerReadModel
-	var entity CustomerSql
-	var entity_address address.AddressSql
-	var models []CustomerReadModel
-
-	sql_query := `
-		SELECT a.customer_id,
+	sql_query :=
+		`SELECT a.customer_id,
 			a.email,
 			a.first_name,
 			a.last_name,
@@ -270,80 +173,32 @@ func (r *repo) SelectAllNext(ctx context.Context, customer CustomerReadModel) ([
 
 	for rows.Next() {
 		err = rows.Scan(
-			&entity.customer_id,
-			&entity.email,
-			&entity.first_name,
-			&entity.last_name,
-			&entity.address_id,
-			&entity.active,
-			&entity.create_date,
-			&entity_address.AddressId,
-			&entity_address.Address,
-			&entity_address.Address2,
-			&entity_address.District,
-			&entity_address.CityId,
-			&entity_address.PostalCode,
+			&sql_model.customer_id,
+			&sql_model.email,
+			&sql_model.first_name,
+			&sql_model.last_name,
+			&sql_model.address_id,
+			&sql_model.active,
+			&sql_model.create_date,
+			&sql_model.address.AddressId,
+			&sql_model.address.Address,
+			&sql_model.address.Address2,
+			&sql_model.address.District,
+			&sql_model.address.CityId,
+			&sql_model.address.PostalCode,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if entity.customer_id.Valid {
-			model.Id = uint8(entity.customer_id.Int16)
-		}
-
-		if entity.email.Valid {
-			model.Email = entity.email.String
-		}
-
-		if entity.first_name.Valid {
-			model.FullName = entity.first_name.String
-		}
-
-		if entity.last_name.Valid {
-			model.FullName += " " + entity.last_name.String
-		}
-
-		if entity.address_id.Valid {
-			model.Address.Id = uint8(entity.address_id.Int16)
-		}
-
-		if entity_address.Address.Valid {
-			model.Address.Address = entity_address.Address.String
-		}
-
-		if entity_address.Address2.Valid {
-			model.Address.Address2 = entity_address.Address2.String
-		}
-
-		if entity_address.District.Valid {
-			model.Address.District = entity_address.District.String
-		}
-
-		if entity_address.CityId.Valid {
-			model.Address.CityId = uint8(entity_address.CityId.Int16)
-		}
-
-		if entity_address.PostalCode.Valid {
-			model.Address.PostalCode = entity_address.PostalCode.String
-		}
-
-		if entity.create_date.Valid {
-			model.CreatedAt = entity.create_date.Time
-		}
-
-		models = append(models, model)
+		sql_models = append(sql_models, sql_model)
 	}
 
-	return models, nil
+	return sql_models, nil
 }
 
-func (r *repo) SelectSingleById(ctx context.Context, id uint) (CustomerReadModel, error) {
-	var entity CustomerSql
-	var model CustomerReadModel
-	var sql_address address.AddressSql
-
+func (r *repo) SelectSingleById(ctx context.Context, id int) (customer_sql_model customerSQLModel, err error) {
 	sql_query := `
 		SELECT a.customer_id,
 			a.email,
@@ -361,113 +216,40 @@ func (r *repo) SelectSingleById(ctx context.Context, id uint) (CustomerReadModel
 		FROM customer a
 			JOIN address b ON b.address_id = a.address_id
 		WHERE a.active = true
-			AND a.customer_id = ?`
+			AND a.customer_id=?`
 	rows, err := r.db.QueryContext(ctx, sql_query, id)
 	if err != nil {
-		return model, err
+		return customer_sql_model, err
 	}
 	defer rows.Close()
 
 	if rows.Next() {
 		err = rows.Scan(
-			&entity.customer_id,
-			&entity.email,
-			&entity.first_name,
-			&entity.last_name,
-			&entity.address_id,
-			&entity.active,
-			&entity.create_date,
-			&sql_address.AddressId,
-			&sql_address.Address,
-			&sql_address.Address2,
-			&sql_address.District,
-			&sql_address.CityId,
-			&sql_address.PostalCode,
+			&customer_sql_model.customer_id,
+			&customer_sql_model.email,
+			&customer_sql_model.first_name,
+			&customer_sql_model.last_name,
+			&customer_sql_model.address_id,
+			&customer_sql_model.active,
+			&customer_sql_model.create_date,
+			&customer_sql_model.address.AddressId,
+			&customer_sql_model.address.Address,
+			&customer_sql_model.address.Address2,
+			&customer_sql_model.address.District,
+			&customer_sql_model.address.CityId,
+			&customer_sql_model.address.PostalCode,
 		)
 		if err != nil {
-			return model, err
-		}
-
-		if entity.customer_id.Valid {
-			model.Id = uint8(entity.customer_id.Int16)
-		}
-
-		if entity.email.Valid {
-			model.Email = entity.email.String
-		}
-
-		// if entity.first_name.Valid {
-		// 	model.FirstName = entity.first_name.String
-		// }
-
-		// if entity.last_name.Valid {
-		// 	model.LastName = entity.last_name.String
-		// }
-
-		if entity.first_name.Valid {
-			model.FullName = entity.first_name.String
-		}
-
-		if entity.last_name.Valid {
-			model.FullName += " " + entity.last_name.String
-		}
-
-		if entity.address_id.Valid {
-			model.Address.Id = uint8(entity.address_id.Int16)
-		}
-
-		if sql_address.Address.Valid {
-			model.Address.Address = sql_address.Address.String
-		}
-
-		if sql_address.Address2.Valid {
-			model.Address.Address2 = sql_address.Address2.String
-		}
-
-		if sql_address.District.Valid {
-			model.Address.District = sql_address.District.String
-		}
-
-		if sql_address.CityId.Valid {
-			model.Address.CityId = uint8(sql_address.CityId.Int16)
-		}
-
-		if sql_address.PostalCode.Valid {
-			model.Address.PostalCode = sql_address.PostalCode.String
-		}
-
-		if entity.create_date.Valid {
-			model.CreatedAt = entity.create_date.Time
+			return customer_sql_model, err
 		}
 	}
 
-	return model, nil
+	return customer_sql_model, nil
 }
 
-func (r *repo) UpdateSingleById(ctx context.Context, id uint, payload CustomerUpdateModel) error {
-	fields := []string{}
-	struct_fields := []any{}
-
-	if payload.FirstName != "" {
-		fields = append(fields, "first_name=?")
-		struct_fields = append(struct_fields, payload.FirstName)
-	}
-
-	if payload.LastName != "" {
-		fields = append(fields, "last_name=?")
-		struct_fields = append(struct_fields, payload.LastName)
-	}
-
-	if payload.Email != "" {
-		fields = append(fields, "email=?")
-		struct_fields = append(struct_fields, payload.Email)
-	}
-
-	fields_string := strings.Join(fields, ", ")
-	struct_fields = append(struct_fields, id)
-
-	sql_query := fmt.Sprintf("UPDATE customer SET %s WHERE customer_id = ?", fields_string)
-	_, err := r.db.ExecContext(ctx, sql_query, struct_fields...)
+func (r *repo) UpdateSingleById(ctx context.Context, id int, payload CustomerUpdateModel) error {
+	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE customer_id=?"
+	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
 	if err != nil {
 		return err
 	}
@@ -475,7 +257,7 @@ func (r *repo) UpdateSingleById(ctx context.Context, id uint, payload CustomerUp
 	return nil
 }
 
-func (r *repo) DeleteSingleById(ctx context.Context, id uint) error {
+func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
@@ -498,7 +280,6 @@ func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) er
 	}
 
 	now := time.Now().In(loc)
-
 	sql_query := `
 		INSERT INTO customer (
 				first_name,
@@ -524,31 +305,26 @@ func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) er
 	return nil
 }
 
-func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint8, payload address.AddressUpdateModel) error {
+func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint16, payload address.AddressUpdateModel) error {
 	fields := []string{}
 	struct_fields := []any{}
 
-	if payload.Address != "" {
+	if payload.Address != nil {
 		fields = append(fields, "address=?")
 		struct_fields = append(struct_fields, payload.Address)
 	}
 
-	if payload.Address2 != "" {
+	if payload.Address2 != nil {
 		fields = append(fields, "address2=?")
 		struct_fields = append(struct_fields, payload.Address2)
 	}
 
-	if payload.District != "" {
+	if payload.District != nil {
 		fields = append(fields, "district=?")
 		struct_fields = append(struct_fields, payload.District)
 	}
 
-	if payload.CityId != 0 {
-		fields = append(fields, "city_id=?")
-		struct_fields = append(struct_fields, payload.CityId)
-	}
-
-	if payload.PostalCode != "" {
+	if payload.PostalCode != nil {
 		fields = append(fields, "postal_code=?")
 		struct_fields = append(struct_fields, payload.PostalCode)
 	}
@@ -559,7 +335,7 @@ func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint8, pa
 	fields_string := strings.Join(fields, ", ")
 	struct_fields = append(struct_fields, id)
 
-	sql_query := fmt.Sprintf("UPDATE address SET %s WHERE address_id = ?", fields_string)
+	sql_query := fmt.Sprintf("UPDATE address SET %s WHERE address_id=?", fields_string)
 	_, err := r.db.ExecContext(ctx, sql_query, struct_fields...)
 	if err != nil {
 		return err

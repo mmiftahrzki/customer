@@ -2,80 +2,67 @@ package customer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"reflect"
 	"strconv"
 
-	"github.com/go-sql-driver/mysql"
+	"github.com/mmiftahrzki/customer/app/model"
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
-	"github.com/mmiftahrzki/customer/model"
 	"github.com/sirupsen/logrus"
 )
 
 type handler struct {
-	repo *repo
-	log  *logrus.Entry
+	service *service
+	log     *logrus.Entry
 }
 
-func newHandler(repo *repo) *handler {
+func NewHandler(svc *service) *handler {
 	return &handler{
-		repo: repo,
-		log:  logger.GetLogger().WithField("component", "customer_handler"),
+		service: svc,
+		log:     logger.GetLogger().WithField("component", "customer_handler"),
 	}
 }
 
 func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
-	response_data := model.NewReadModel()
+	w.Header().Set("Content-Type", "application/json")
+
+	response := model.NewReadModel()
 	payload := CustomerCreateModel{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&payload)
 	if err != nil {
-		logger.Logger.Error(err)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	if !Validate(payload) {
-		logger.Logger.Error(err)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	err = h.repo.InsertSingle(r.Context(), payload)
-	if err != nil {
 		h.log.Error(err)
 
-		mysql_error, ok := err.(*mysql.MySQLError)
-		if ok {
-			if mysql_error.Number == 1062 {
-				response_data.Message = fmt.Sprintf("customer dengan email: %s sudah ada", payload.Email)
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusConflict)
-				w.Write(response_data.ToJson())
-
-				return
-			}
-		}
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	response_data.Message = "berhasil membuat customer baru"
+	if err = h.service.CreateNewSingle(r.Context(), payload); err != nil {
+		switch err {
+		case ErrCustomerAlreadyExists:
+			response.Message = fmt.Sprintf("customer with email: %s already exists", payload.Email)
+
+			w.WriteHeader(http.StatusConflict)
+			w.Write(response.ToJson())
+
+			return
+		default:
+			h.log.Error(err)
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+
+			return
+		}
+	}
+
+	response.Message = "success create new customer"
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(response_data.ToJson()))
+	w.Write([]byte(response.ToJson()))
 }
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +74,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 
 	response := model.NewReadModel()
 
-	customers, err := h.repo.SelectAll(r.Context())
+	customers, err := h.service.GetMultiple(r.Context())
 	if err != nil {
 		h.log.Error(err)
 
@@ -114,9 +101,9 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 	res := model.NewReadModel()
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
+	id, err := parseIdStringToInt(r.PathValue("id"))
 	if err != nil {
-		res.Message = "id tidak valid"
+		res.Message = "invalid id"
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -125,7 +112,8 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.repo.SelectSingleById(r.Context(), id)
+	// customer, err := h.repo.SelectSingleById(r.Context(), id)
+	customer, err := h.service.GetSingleById(r.Context(), id)
 	if err != nil {
 		h.log.Error(err)
 
@@ -135,7 +123,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	empty_customer := CustomerReadModel{}
+	empty_customer := customerReadModel{}
 	if customer == empty_customer {
 		res.Message = fmt.Sprintf("customer dengan id: %d tidak ditemukan", id)
 
@@ -156,11 +144,11 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 	res := model.NewReadModel()
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
+	id, err := parseIdStringToInt(r.PathValue("id"))
 	if err != nil {
 		h.log.Error(err)
 
-		res.Message = "id tidak valid"
+		res.Message = "invalid id"
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -169,27 +157,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.repo.SelectSingleById(r.Context(), id)
-	if err != nil {
-		h.log.Error(err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-
-		return
-	}
-
-	if reflect.ValueOf(customer).IsZero() {
-		res.Message = http.StatusText(http.StatusNotFound)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(res.ToJson())
-
-		return
-	}
-
-	customers, err := h.repo.SelectAllNext(r.Context(), customer)
+	customers, err := h.service.GetMultipleNext(r.Context(), id)
 	if err != nil {
 		h.log.Error(err)
 
@@ -214,81 +182,62 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 	w.Write(res.ToJson())
 }
 
-func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	res := model.NewReadModel()
+// func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
+// 	res := model.NewReadModel()
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
-	if err != nil {
-		h.log.Error(err)
+// 	id, err := parseIdStringToInt(r.PathValue("id"))
+// 	if err != nil {
+// 		h.log.Error(err)
 
-		res.Message = "id tidak valid"
+// 		res.Message = "invalid id"
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(res.ToJson())
+// 		w.Header().Set("Content-Type", "application/json")
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		w.Write(res.ToJson())
 
-		return
-	}
+// 		return
+// 	}
 
-	customer, err := h.repo.SelectSingleById(r.Context(), id)
-	if err != nil {
-		h.log.Error(err)
+// 	customers, err := h.service.GetPrev(r.Context(), id)
+// 	if err != nil {
+// 		h.log.Error(err)
 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 
-		return
-	}
+// 		return
+// 	}
 
-	if reflect.ValueOf(customer).IsZero() {
-		res.Message = http.StatusText(http.StatusNotFound)
+// 	if len(customers) == LIMIT+1 {
+// 		res.Data["__prev"] = fmt.Sprintf("/api/customer/%d/prev", customers[1].Id)
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(res.ToJson())
+// 		customers = customers[1 : LIMIT+1]
+// 	}
 
-		return
-	}
+// 	if len(customers) > 0 {
+// 		res.Data["__next"] = fmt.Sprintf("/api/customer/%d/next", customers[len(customers)-1].Id)
+// 	}
 
-	customers, err := h.repo.SelectAllPrev(r.Context(), customer)
-	if err != nil {
-		h.log.Error(err)
+// 	res.Data["customers"] = customers
+// 	res.Message = "berhasil mendapatkan data customer"
 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-
-		return
-	}
-
-	if len(customers) == LIMIT+1 {
-		res.Data["__prev"] = fmt.Sprintf("/api/customer/%d/prev", customers[1].Id)
-
-		customers = customers[1 : LIMIT+1]
-	}
-
-	if len(customers) > 0 {
-		res.Data["__next"] = fmt.Sprintf("/api/customer/%d/next", customers[len(customers)-1].Id)
-	}
-
-	res.Data["customers"] = customers
-	res.Message = "berhasil mendapatkan data customer"
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(res.ToJson())
-}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.WriteHeader(http.StatusOK)
+// 	w.Write(res.ToJson())
+// }
 
 func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
-	var err error
+	w.Header().Set("Content-Type", "application/json")
+
+	var err error = nil
 	res := model.NewReadModel()
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
+	id, err := parseIdStringToInt(r.PathValue("id"))
 	if err != nil {
 		h.log.Error(err)
 
-		res.Message = "id tidak valid"
+		res.Message = "invalid id"
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
 
@@ -296,55 +245,48 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := CustomerUpdateModel{}
-	decoder := json.NewDecoder(r.Body)
-	err = decoder.Decode(&payload)
+	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
 
 		res.Message = http.StatusText(http.StatusBadRequest)
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
 
 		return
 	}
 
-	if !Validate(payload) {
-		logger.Logger.Error(err)
+	err = ValidateCustomerUpdateModel(payload)
+	if err != nil {
+		res.Message = err.Error()
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write(res.ToJson())
 
 		return
 	}
 
-	err = h.repo.UpdateSingleById(r.Context(), id, payload)
+	err = h.service.ModifySingleById(r.Context(), id, payload)
 	if err != nil {
-		h.log.Error(err)
+		if errors.Is(err, ErrCustomerNotFound) {
+			res.Message = http.StatusText(http.StatusUnprocessableEntity)
 
-		mysql_error, ok := err.(*mysql.MySQLError)
-		if ok {
-			if mysql_error.Number == 1292 {
-				res.Message = http.StatusText(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write(res.ToJson())
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write(res.ToJson())
-			}
+			return
+		} else {
+			h.log.Error(err)
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 
 			return
 		}
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-
-		return
 	}
 
-	res.Message = "berhasil memperbarui data customer"
-
-	w.Header().Set("Content-Type", "application/json")
+	res.Message = "success modify customer"
 	w.WriteHeader(http.StatusOK)
 	w.Write(res.ToJson())
 }
@@ -352,9 +294,9 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 	res := model.NewReadModel()
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
+	id, err := parseIdStringToInt(r.PathValue("id"))
 	if err != nil {
-		res.Message = "id tidak valid"
+		res.Message = "invalid id"
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -363,7 +305,7 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.repo.DeleteSingleById(r.Context(), id)
+	err = h.service.DeleteSingleById(r.Context(), id)
 	if err != nil {
 		h.log.Error(err)
 
@@ -378,66 +320,70 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	res := model.NewReadModel()
 	var err error
 
-	id, err := parseIdStringToUint(r.PathValue("id"))
+	customer_id, err := parseIdStringToInt(r.PathValue("customer_id"))
 	if err != nil {
 		h.log.Error(err)
 
-		res.Message = "id tidak valid"
+		res.Message = "invalid id"
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
 
 		return
 	}
 
-	customer, err := h.repo.SelectSingleById(r.Context(), id)
+	address_id, err := parseIdStringToUint16(r.PathValue("address_id"))
 	if err != nil {
 		h.log.Error(err)
 
-		res.Message = http.StatusText(http.StatusNotFound)
+		res.Message = "invalid id"
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
 
 		return
 	}
 
 	payload := address.AddressUpdateModel{}
-	decoder := json.NewDecoder(r.Body)
-	err = decoder.Decode(&payload)
+	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
 
 		res.Message = http.StatusText(http.StatusBadRequest)
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(res.ToJson())
 
 		return
 	}
 
-	err = h.repo.UpdateSingleAddressByCustomerId(r.Context(), customer.Address.Id, payload)
+	err = address.ValidateAddressUpdateModel(payload)
 	if err != nil {
-		h.log.Error(err)
+		res.Message = err.Error()
 
-		mysql_error, ok := err.(*mysql.MySQLError)
-		if ok {
-			if mysql_error.Number == 1292 {
-				res.Message = http.StatusText(http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(res.ToJson())
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write(res.ToJson())
-			}
+		return
+	}
+
+	err = h.service.ModifySingleAddressById(r.Context(), customer_id, address_id, payload)
+	if err != nil {
+		if errors.Is(err, ErrCustomerNotFound) || errors.Is(err, ErrInvalidCustomerAddressMismatch) {
+			res.Message = http.StatusText(http.StatusUnprocessableEntity)
+
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write(res.ToJson())
 
 			return
 		}
+
+		h.log.Error(err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
@@ -445,18 +391,26 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	res.Message = "berhasil memperbarui data customer"
+	res.Message = "success modify customer's address"
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(res.ToJson())
 }
 
-func parseIdStringToUint(id_str string) (uint, error) {
-	id_uint64, err := strconv.ParseUint(id_str, 10, 64)
+func parseIdStringToInt(id_str string) (int, error) {
+	id_int, err := strconv.ParseInt(id_str, 10, 0)
 	if err != nil {
 		return 0, err
 	}
 
-	return uint(id_uint64), nil
+	return int(id_int), nil
+}
+
+func parseIdStringToUint16(id_str string) (uint16, error) {
+	id_int, err := strconv.ParseInt(id_str, 10, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(id_int), nil
 }

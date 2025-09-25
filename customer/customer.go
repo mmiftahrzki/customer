@@ -10,5 +10,9 @@ type CustomerModel interface {
 }
 
 func NewCustomer(db *sql.DB) *http.ServeMux {
-	return newMux(newHandler(newRepo(db)))
+	repo := newRepo(db)
+	service := NewService(*repo)
+	handler := NewHandler(service)
+
+	return newMux(handler)
 }

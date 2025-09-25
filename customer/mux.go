@@ -13,10 +13,10 @@ func newMux(h *handler) *http.ServeMux {
 	mux.HandleFunc("POST /api/customer/", h.PostSingle)
 	mux.HandleFunc("GET /api/customer/", h.GetMultiple)
 	mux.HandleFunc("GET /api/customer/{id}", h.GetSingleById)
-	mux.HandleFunc("GET /api/customer/{id}/prev", h.GetMultiplePrev)
+	// mux.HandleFunc("GET /api/customer/{id}/prev", h.GetMultiplePrev)
 	mux.HandleFunc("GET /api/customer/{id}/next", h.GetMultipleNext)
 	mux.HandleFunc("PUT /api/customer/{id}", h.PutSingleById)
-	mux.HandleFunc("PATCH /api/customer/{id}/address", h.GetSingleAndUpdateAddressById)
+	mux.HandleFunc("PATCH /api/customer/{customer_id}/address/{address_id}", h.GetSingleAndUpdateAddressById)
 
 	return mux
 }
