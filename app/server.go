@@ -7,14 +7,20 @@ import (
 	"time"
 
 	"github.com/mmiftahrzki/customer/config"
+	"github.com/mmiftahrzki/customer/logger"
+	"github.com/sirupsen/logrus"
 )
 
 type app struct {
 	server *http.Server
+	log    *logrus.Entry
 }
 
 func New(cfg config.AppConfig, db *sql.DB) *app {
+	app_logger := logger.GetLogger().WithField("component", "app")
+
 	return &app{
+		log: app_logger,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.Port),
 			Handler:      newMux(db),
@@ -25,7 +31,7 @@ func New(cfg config.AppConfig, db *sql.DB) *app {
 }
 
 func (a *app) Run() error {
-	fmt.Println("Listening on:", a.server.Addr)
+	a.log.Infof("Listening on %s", a.server.Addr)
 
 	return a.server.ListenAndServe()
 }

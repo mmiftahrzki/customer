@@ -20,10 +20,9 @@
 # Go workspace file
 go.work
 
-*_test.go
-*_test.http
 .env
 .vscode
 notes.md
 database/customer.sql
 config.json
+*.log

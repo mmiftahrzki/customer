@@ -1,4 +1,4 @@
-package handler
+package user
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -18,22 +17,36 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
+	"github.com/mmiftahrzki/customer/logger"
 	"github.com/mmiftahrzki/go-rest-api/database"
 	"github.com/mmiftahrzki/go-rest-api/middleware/auth"
 	"github.com/mmiftahrzki/go-rest-api/model"
 	"github.com/mmiftahrzki/go-rest-api/response"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
+type handler struct {
+	repo *repo
+	log  *logrus.Entry
+}
+
+func newHandler(repo *repo) *handler {
+	return &handler{
+		repo: repo,
+		log:  logger.GetLogger().WithField("component", "user_handler"),
+	}
+}
+
 // func (c *controller) CreateUser(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-func CreateUser(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+func (h *handler) CreateUser(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	writer.Header().Set("Content-Type", "application/json")
 	response := response.New()
 
 	// marshal http request body payload to user type struct
 	request_body, err := io.ReadAll(request.Body)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		response.Message = "terjadi kesalahan tak terduga di server. silakan coba lagi nanti."
 
@@ -48,7 +61,7 @@ func CreateUser(writer http.ResponseWriter, request *http.Request, params httpro
 	json_decoder := json.NewDecoder(buffer)
 	err = json_decoder.Decode(user)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		response.Message = "invalid payload"
 
@@ -62,7 +75,7 @@ func CreateUser(writer http.ResponseWriter, request *http.Request, params httpro
 	validator := validator.New()
 	err = validator.Struct(user)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		response.Message = "invalid payload"
 
@@ -80,7 +93,7 @@ func CreateUser(writer http.ResponseWriter, request *http.Request, params httpro
 
 	password_hash, err := bcrypt.GenerateFromPassword(hmac_sha256.Sum(nil), bcrypt.DefaultCost)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		response.Message = "terjadi kesalahan tak terduga di server. silakan coba lagi nanti."
 
@@ -113,7 +126,7 @@ func CreateUser(writer http.ResponseWriter, request *http.Request, params httpro
 
 	_, err = db.ExecContext(request.Context(), sql_query, id, id.String(), user.Email, string(password_hash), user.Fullname, now)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		response_status := http.StatusInternalServerError
 		response_message := "terjadi kesalahan tak terduga di server. silakan coba lagi nanti."
@@ -141,7 +154,7 @@ func CreateUser(writer http.ResponseWriter, request *http.Request, params httpro
 	writer.Write(response.ToJson())
 }
 
-func ReadUser(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+func (h *handler) ReadUser(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	response := response.New()
 	status_code := http.StatusInternalServerError
 	message := "terjadi kesalahan tak terduga di server. silakan coba lagi nanti."
@@ -158,7 +171,7 @@ func ReadUser(writer http.ResponseWriter, request *http.Request, params httprout
 	// marshal http request body payload to user login payload type struct
 	request_body, err := io.ReadAll(request.Body)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
@@ -177,7 +190,7 @@ func ReadUser(writer http.ResponseWriter, request *http.Request, params httprout
 			return
 		}
 
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
@@ -189,7 +202,7 @@ func ReadUser(writer http.ResponseWriter, request *http.Request, params httprout
 	db := database.GetDatabaseConnection()
 	row, err := db.QueryContext(request.Context(), sql_query, user_login.Email)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
@@ -205,7 +218,7 @@ func ReadUser(writer http.ResponseWriter, request *http.Request, params httprout
 	var stored_hashed_password []byte
 	err = row.Scan(&stored_hashed_password)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
@@ -219,14 +232,14 @@ func ReadUser(writer http.ResponseWriter, request *http.Request, params httprout
 			return
 		}
 
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
 
 	token, err := auth.GenerateToken(*user_login)
 	if err != nil {
-		log.Println(err)
+		h.log.Error(err)
 
 		return
 	}
