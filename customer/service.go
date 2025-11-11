@@ -3,8 +3,8 @@ package customer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
+	"sort"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/customer/address"
@@ -17,12 +17,12 @@ type service struct {
 	log  *logrus.Entry
 }
 
-var ErrCustomerAlreadyExists = fmt.Errorf("customer already exists")
-var ErrCustomerNotFound = fmt.Errorf("customer not found")
-var ErrInvalidCustomerAddressMismatch = fmt.Errorf("customer address mismatch")
+var errCustomerAlreadyExists = errors.New("customer already exists")
+var errCustomerNotFound = errors.New("customer not found")
+var errInvalidCustomerAddressMismatch = errors.New("customer address mismatch")
 
-func NewService(r repo) *service {
-	svc := &service{
+func newService(r repo) service {
+	svc := service{
 		repo: r,
 		log:  logger.GetLogger().WithField("component", "customer_service"),
 	}
@@ -37,35 +37,39 @@ func (svc *service) GetMultiple(ctx context.Context) (customers []customerReadMo
 	}
 
 	for _, customer_sql := range customer_sqls {
-		customer := NewCustomerReadModel(customer_sql)
+		customer := newCustomerReadModel(customer_sql)
 		customers = append(customers, customer)
 	}
 
 	return
 }
 
-// func (svc *service) GetPrev(ctx context.Context, id int) (customers []customerReadModel, err error) {
-// 	customer, err := svc.GetSingleById(ctx, id)
-// 	if err != nil {
-// 		return
-// 	}
+func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []customerReadModel, err error) {
+	customer, err := svc.GetSingleById(ctx, id)
+	if err != nil {
+		return
+	}
 
-// 	if reflect.ValueOf(customer).IsZero() {
-// 		return nil, errors.New("implement me")
-// 	}
+	if reflect.ValueOf(customer).IsZero() {
+		return nil, errors.New("implement me")
+	}
 
-// 	customer_sqls, err := svc.repo.SelectAllPrev(ctx, customer)
-// 	if err != nil {
-// 		return
-// 	}
+	customer_sqls, err := svc.repo.SelectAllPrev(ctx, customer)
+	if err != nil {
+		return
+	}
 
-// 	for _, customer_sql := range customer_sqls {
-// 		customer := NewCustomerReadModel(customer_sql)
-// 		customers = append(customers, customer)
-// 	}
+	for _, customer_sql := range customer_sqls {
+		customer := newCustomerReadModel(customer_sql)
+		customers = append(customers, customer)
+	}
 
-// 	return
-// }
+	sort.SliceStable(customers, func(i, j int) bool {
+		return customers[i].Id < customers[j].Id
+	})
+
+	return
+}
 
 func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []customerReadModel, err error) {
 	customer, err := svc.GetSingleById(ctx, id)
@@ -83,7 +87,7 @@ func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []cu
 	}
 
 	for _, customer_sql := range customer_sqls {
-		customer := NewCustomerReadModel(customer_sql)
+		customer := newCustomerReadModel(customer_sql)
 		customers = append(customers, customer)
 	}
 
@@ -100,19 +104,19 @@ func (svc *service) GetSingleById(ctx context.Context, id int) (customerReadMode
 	}
 
 	if customer_sql == empty_customer_sql {
-		return customer, ErrCustomerNotFound
+		return customer, errCustomerNotFound
 	}
 
-	customer = NewCustomerReadModel(customer_sql)
+	customer = newCustomerReadModel(customer_sql)
 
 	return customer, nil
 }
 
-func (svc *service) CreateNewSingle(ctx context.Context, new_customer CustomerCreateModel) error {
+func (svc *service) CreateNewSingle(ctx context.Context, new_customer customerCreateModel) error {
 	if err := svc.repo.InsertSingle(ctx, new_customer); err != nil {
 		if mysql_error, ok := err.(*mysql.MySQLError); ok {
 			if mysql_error.Number == 1062 {
-				return ErrCustomerAlreadyExists
+				return errCustomerAlreadyExists
 			}
 
 			return mysql_error
@@ -124,7 +128,7 @@ func (svc *service) CreateNewSingle(ctx context.Context, new_customer CustomerCr
 	return nil
 }
 
-func (svc *service) ModifySingleById(ctx context.Context, id int, modified_customer CustomerUpdateModel) error {
+func (svc *service) ModifySingleById(ctx context.Context, id int, modified_customer customerUpdateModel) error {
 	if _, err := svc.GetSingleById(ctx, id); err != nil {
 		return err
 	}
@@ -152,7 +156,7 @@ func (svc *service) ModifySingleAddressById(ctx context.Context, customer_id int
 	}
 
 	if uint16(customer_sql.address_id.Int16) != address_id {
-		return ErrInvalidCustomerAddressMismatch
+		return errInvalidCustomerAddressMismatch
 	}
 
 	if err := svc.repo.UpdateSingleAddressByCustomerId(ctx, address_id, modified_customer_address); err != nil {

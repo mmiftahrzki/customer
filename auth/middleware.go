@@ -2,95 +2,40 @@ package auth
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
-	"os"
-	"strings"
 
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/mmiftahrzki/go-rest-api/response"
+	"github.com/mmiftahrzki/customer/responses"
 )
 
-type jwtContextKey int
-
-const key jwtContextKey = iota
-const request_header_auth_key string = "Authorization"
-
-var errEmptyAuth = errors.New("authorization header not found")
-var errInvalidAuth = errors.New("invalid authorization header")
-
-func extractAuthTokenStr(auth_value string) (string, error) {
-	var token_str string
-
-	if len(auth_value) == 0 {
-		return token_str, errEmptyAuth
-	}
-
-	auth_value_fields := strings.Fields(auth_value)
-	if len(auth_value_fields) != 2 || auth_value_fields[0] != "Bearer" {
-		return token_str, errInvalidAuth
-	}
-
-	token_str = auth_value_fields[1]
-
-	return token_str, nil
+type middleware struct {
+	service service
 }
 
-func Verify(next http.Handler) http.Handler {
+func newMiddleware(svc service) middleware {
+	return middleware{
+		service: svc,
+	}
+}
+
+func (h *middleware) VerifyJWT(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		response := response.New()
-
-		auth_value := r.Header.Get(request_header_auth_key)
-		token_str, err := extractAuthTokenStr(auth_value)
+		authValue := r.Header.Get(RequestHeaderAuthKey)
+		token_str, err := extractAuthTokenStr(authValue)
 		if err != nil {
-			response.Message = err.Error()
-
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(response.ToJson())
+			responses.Error(w, http.StatusBadRequest, err.Error())
 
 			return
 		}
 
-		token, err := jwt.ParseWithClaims(token_str, &AuthClaimModel{}, func(t *jwt.Token) (any, error) {
-			method, ok := t.Method.(*jwt.SigningMethodHMAC)
-			if !ok || method != jwt.SigningMethodHS256 {
-				return nil, fmt.Errorf("invalid signing method")
-			}
-
-			return []byte(os.Getenv("JWT_SECRET_KEY")), nil
-		})
-
+		token, err := h.service.getToken(token_str)
 		if err != nil {
-			response.Message = err.Error()
-
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(response.ToJson()))
+			responses.Error(w, http.StatusBadRequest, err.Error())
 
 			return
 		}
 
-		if !token.Valid {
-			response.Message = "invalid jwt"
+		r = r.WithContext(context.WithValue(r.Context(), JWTContextKey, token.Claims))
 
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(response.ToJson()))
-
-			return
-		}
-
-		claims, ok := token.Claims.(*AuthClaimModel)
-		if !ok {
-			response.Message = "invalid jwt claims"
-
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(response.ToJson()))
-
-			return
-		}
-
-		r = r.WithContext(context.WithValue(r.Context(), key, claims))
 		next.ServeHTTP(w, r)
 	})
 }

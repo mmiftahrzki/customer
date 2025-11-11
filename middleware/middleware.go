@@ -4,4 +4,4 @@ import (
 	"net/http"
 )
 
-type Middleware func(http.Handler) http.Handler
+type Middleware func(http.HandlerFunc) http.HandlerFunc
