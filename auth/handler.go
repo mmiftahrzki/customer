@@ -4,61 +4,47 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/mmiftahrzki/go-rest-api/response"
+	"github.com/mmiftahrzki/customer/logger"
+	"github.com/mmiftahrzki/customer/responses"
+	"github.com/sirupsen/logrus"
 )
 
-func CreateAuthToken(w http.ResponseWriter, r *http.Request) {
-	var payload AuthCreateModel
-	response := response.New()
+type handler struct {
+	service service
+	log     *logrus.Entry
+}
+
+func newHandler(svc service) handler {
+	return handler{
+		service: svc,
+		log:     logger.GetLogger().WithField("component", "auth/handler"),
+	}
+}
+
+func (h *handler) CreateAuthToken(w http.ResponseWriter, r *http.Request) {
+	payload := AuthCreateModel{}
 
 	json_decoder := json.NewDecoder(r.Body)
 	err := json_decoder.Decode(&payload)
 	if err != nil {
 		log.Println(err)
 
-		response.Message = http.StatusText(http.StatusBadRequest)
-
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(response.ToJson())
 
 		return
 	}
 
-	token, err := generateToken(payload)
+	token, err := h.service.generateJWT(payload)
 	if err != nil {
 		log.Println(err)
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(response.ToJson())
+		responses.Error(w, http.StatusInternalServerError, "errors occured when generating JWT")
 
 		return
 	}
 
-	response.Data["token"] = token
-	response.Message = "berhasil generate token"
+	res := AuthReadModel{Token: token}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(response.ToJson())
-}
-
-func generateToken(payload AuthCreateModel) (string, error) {
-	registerd_claims := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute))}
-	claims := AuthClaimModel{
-		Email:            payload.Email,
-		RegisteredClaims: registerd_claims,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed_string, err := token.SignedString([]byte(os.Getenv("JWT_SECRET_KEY")))
-	if err != nil {
-		return signed_string, err
-	}
-
-	return signed_string, nil
+	responses.WithJson(w, http.StatusOK, res)
 }

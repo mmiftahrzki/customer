@@ -25,21 +25,8 @@ func main() {
 	defer db.Close()
 
 	app := app.New(cfg.App, db)
-	if app.Run(); err != nil {
+	err = app.Run()
+	if err != nil {
 		logger.Panic(err)
 	}
-
-	// router.HandleFunc("GET /api/top-secert", nil)
-
-	// auth := auth_pkg.New()
-	// customerValidation := validation.New()
-
-	// signUp := router_pkg.Endpoint{Path: "/api/auth/signup", Method: http.MethodPost}
-	// signIn := router_pkg.Endpoint{Path: "/api/auth/signin", Method: http.MethodPost}
-
-	// getToken := router_pkg.Endpoint{Path: "/api/auth/token", Method: http.MethodPost}
-
-	// router.Handle(signUp, handler.CreateUser)
-	// router.Handle(signIn, handler.ReadUser)
-	// router.Handle(getToken, auth_pkg.Token)
 }

@@ -16,7 +16,7 @@ type customerReadModel struct {
 	CreatedAt time.Time                `json:"created_at"`
 }
 
-func NewCustomerReadModel(sql_model customerSQLModel) (customer customerReadModel) {
+func newCustomerReadModel(sql_model customerSQLModel) (customer customerReadModel) {
 	address_read_model := address.AddressReadModel{}
 
 	if sql_model.customer_id.Valid {
@@ -59,7 +59,7 @@ func NewCustomerReadModel(sql_model customerSQLModel) (customer customerReadMode
 		address_read_model.PostalCode = sql_model.address.PostalCode.String
 	}
 
-	customer.Address = NewAddressReadModel(address_read_model)
+	customer.Address = newAddressReadModel(address_read_model)
 
 	if sql_model.create_date.Valid {
 		customer.CreatedAt = sql_model.create_date.Time
@@ -68,7 +68,7 @@ func NewCustomerReadModel(sql_model customerSQLModel) (customer customerReadMode
 	return
 }
 
-func NewAddressReadModel(address address.AddressReadModel) customerAddressReadModel {
+func newAddressReadModel(address address.AddressReadModel) customerAddressReadModel {
 	addresses := []string{}
 
 	if address.Address != "" {

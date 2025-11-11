@@ -20,13 +20,13 @@ func New(cfg config.AppConfig, db *sql.DB) *app {
 	app_logger := logger.GetLogger().WithField("component", "app")
 
 	return &app{
+		log: app_logger,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.Port),
 			Handler:      newMux(db),
 			WriteTimeout: time.Second * 30,
 			ReadTimeout:  time.Second * 10,
 		},
-		log: app_logger,
 	}
 }
 

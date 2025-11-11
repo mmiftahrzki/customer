@@ -1,19 +1,19 @@
 package customer
 
 import (
-	"fmt"
+	"errors"
 )
 
-type CustomerUpdateModel struct {
+type customerUpdateModel struct {
 	FirstName *string `json:"first_name"`
 	LastName  *string `json:"last_name"`
 	Email     *string `json:"email"`
 }
 
-var errCustomerFirstNameNull = fmt.Errorf("customer first name is required")
-var errCustomerLastNameNull = fmt.Errorf("customer last name is required")
+var errCustomerFirstNameNull = errors.New("customer first name is required")
+var errCustomerLastNameNull = errors.New("customer last name is required")
 
-func ValidateCustomerUpdateModel(m CustomerUpdateModel) error {
+func validatecustomerUpdateModel(m customerUpdateModel) error {
 	if m.FirstName == nil || len(*m.FirstName) > 45 {
 		return errCustomerFirstNameNull
 	}

@@ -3,24 +3,26 @@ package customer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/mmiftahrzki/customer/auth"
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
 )
 
-const LIMIT int = 25
+const limit int = 25
 
 type repo struct {
 	db  *sql.DB
 	log *logrus.Entry
 }
 
-func newRepo(db *sql.DB) *repo {
-	return &repo{
+func newRepo(db *sql.DB) repo {
+	return repo{
 		db:  db,
 		log: logger.GetLogger().WithField("component", "customer_repo"),
 	}
@@ -29,8 +31,8 @@ func newRepo(db *sql.DB) *repo {
 func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, err error) {
 	var sql_model customerSQLModel
 
-	sql_query := `
-		SELECT a.customer_id,
+	sql_query :=
+		`SELECT a.customer_id,
 			a.email,
 			a.first_name,
 			a.last_name,
@@ -49,7 +51,7 @@ func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, er
 		ORDER BY a.customer_id ASC
 		LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, LIMIT+1)
+	rows, err := r.db.QueryContext(ctx, sql_query, limit+1)
 	if err != nil {
 		return nil, err
 	}
@@ -84,62 +86,62 @@ func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, er
 	return sql_models, nil
 }
 
-// func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
-// 	var sql_model customerSQLModel
+func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
+	var sql_model customerSQLModel
 
-// 	sql_query := `
-// 		SELECT a.customer_id,
-// 			a.email,
-// 			a.first_name,
-// 			a.last_name,
-// 			a.address_id,
-// 			a.active,
-// 			a.create_date,
-// 			b.address_id,
-// 			b.address,
-// 			b.address2,
-// 			b.district,
-// 			b.city_id,
-// 			b.postal_code
-// 		FROM customer a
-// 			JOIN address b ON b.address_id = a.address_id
-// 		WHERE a.active = true
-// 			AND a.customer_id < ?
-// 		ORDER BY a.customer_id ASC
-// 		LIMIT ?`
+	sql_query :=
+		`SELECT a.customer_id,
+			a.email,
+			a.first_name,
+			a.last_name,
+			a.address_id,
+			a.active,
+			a.create_date,
+			b.address_id,
+			b.address,
+			b.address2,
+			b.district,
+			b.city_id,
+			b.postal_code
+		FROM customer a
+			JOIN address b ON b.address_id = a.address_id
+		WHERE a.active = TRUE
+			AND a.customer_id < ?
+		ORDER BY a.customer_id DESC
+      LIMIT ?`
 
-// 	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
+	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-// 	for rows.Next() {
-// 		err = rows.Scan(
-// 			&sql_model.customer_id,
-// 			&sql_model.email,
-// 			&sql_model.first_name,
-// 			&sql_model.last_name,
-// 			&sql_model.address_id,
-// 			&sql_model.active,
-// 			&sql_model.create_date,
-// 			&sql_model.address.AddressId,
-// 			&sql_model.address.Address,
-// 			&sql_model.address.Address2,
-// 			&sql_model.address.District,
-// 			&sql_model.address.CityId,
-// 			&sql_model.address.PostalCode,
-// 		)
+	for rows.Next() {
+		err = rows.Scan(
+			&sql_model.customer_id,
+			&sql_model.email,
+			&sql_model.first_name,
+			&sql_model.last_name,
+			&sql_model.address_id,
+			&sql_model.active,
+			&sql_model.create_date,
+			&sql_model.address.AddressId,
+			&sql_model.address.Address,
+			&sql_model.address.Address2,
+			&sql_model.address.District,
+			&sql_model.address.CityId,
+			&sql_model.address.PostalCode,
+		)
 
-// 		if err != nil {
-// 			return nil, err
-// 		}
+		if err != nil {
+			return nil, err
+		}
 
-// 		sql_models = append(sql_models, sql_model)
-// 	}
+		sql_models = append(sql_models, sql_model)
+	}
 
-// 	return sql_models, nil
-// }
+	return sql_models, nil
+}
 
 func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
 	var sql_model customerSQLModel
@@ -160,12 +162,12 @@ func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (s
 			b.postal_code
 		FROM customer a
 			JOIN address b ON b.address_id = a.address_id
-		WHERE a.active = true
+		WHERE a.active = TRUE
 			AND a.customer_id > ?
 		ORDER BY a.customer_id ASC
 		LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, LIMIT+1)
+	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit+1)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +249,7 @@ func (r *repo) SelectSingleById(ctx context.Context, id int) (customer_sql_model
 	return customer_sql_model, nil
 }
 
-func (r *repo) UpdateSingleById(ctx context.Context, id int, payload CustomerUpdateModel) error {
+func (r *repo) UpdateSingleById(ctx context.Context, id int, payload customerUpdateModel) error {
 	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE customer_id=?"
 	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
 	if err != nil {
@@ -258,14 +260,20 @@ func (r *repo) UpdateSingleById(ctx context.Context, id int, payload CustomerUpd
 }
 
 func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
+	JWTContext := ctx.Value(auth.JWTContextKey)
+	claim, ok := JWTContext.(*auth.AuthClaimModel)
+	if !ok {
+		return errors.New("asd")
+	}
+
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	sql_query := "DELETE FROM customer a WHERE a.customer_id = ?"
-	_, err = tx.ExecContext(ctx, sql_query, id)
+	sql_query := "DELETE FROM customer a WHERE a.customer_id = ? AND a.created_by = ?"
+	_, err = tx.ExecContext(ctx, sql_query, id, claim.Email)
 	if err != nil {
 		return err
 	}
@@ -273,15 +281,15 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) error {
+func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) error {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return err
 	}
 
 	now := time.Now().In(loc)
-	sql_query := `
-		INSERT INTO customer (
+	sql_query :=
+		`INSERT INTO customer (
 				first_name,
 				last_name,
 				email,
@@ -289,7 +297,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload CustomerCreateModel) er
 				store_id,
 				address_id
 			)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?);`
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
