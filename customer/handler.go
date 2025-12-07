@@ -28,6 +28,8 @@ func newHandler(svc service) handler {
 }
 
 func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	content_length_str := r.Header.Get("Content-Length")
 	content_length, err := strconv.Atoi(content_length_str)
 	if err != nil {
@@ -48,7 +50,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := customerCreateModel{}
+	payload := createModel{}
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&payload)
 	if err != nil {
@@ -78,7 +80,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+	var res responses.GetMultipleResponse[readModel]
 
 	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
 		http.NotFound(w, r)
@@ -108,7 +110,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetSingleResponse[customerReadModel]
+	var res responses.GetSingleResponse[readModel]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -140,7 +142,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+	var res responses.GetMultipleResponse[readModel]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -172,7 +174,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+	var res responses.GetMultipleResponse[readModel]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -212,6 +214,8 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		h.log.Error(err)
@@ -277,6 +281,8 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var err error
 
 	customer_id, err := strconv.Atoi(r.PathValue("customer_id"))

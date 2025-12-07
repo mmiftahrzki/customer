@@ -7,7 +7,7 @@ import (
 )
 
 type GetSingleResponse[T any] struct {
-	Data T
+	Data T `json:"data"`
 }
 
 type GetMultipleResponse[T any] struct {

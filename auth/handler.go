@@ -23,6 +23,8 @@ func newHandler(svc service) handler {
 }
 
 func (h *handler) CreateAuthToken(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	payload := AuthCreateModel{}
 
 	json_decoder := json.NewDecoder(r.Body)

@@ -14,7 +14,7 @@ Showing everyone that I can build RESTful API using Go programming language.
 - [DONE] implemen sliding window previousing
 - [DONE] add fitur middleware
 - [DONE] add fitur authentication and authorization using JWT Bearer.
-- [] terapkan authentication di endpoint post, put, dan delete
-  - [] terapkan authorization role user di endpoint post dan put.
-  - [] terapkan authorization role admin di endpoint delete.
+- [DONE] terapkan authentication di endpoint post, put, dan delete
+- [] terapkan authorization role user di endpoint post dan put.
+- [] terapkan authorization role admin di endpoint delete.
 - [] bikin test files di package customer/address.

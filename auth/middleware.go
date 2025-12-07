@@ -17,17 +17,17 @@ func newMiddleware(svc service) middleware {
 	}
 }
 
-func (h *middleware) VerifyJWT(next http.HandlerFunc) http.HandlerFunc {
+func (m *middleware) VerifyJWT(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authValue := r.Header.Get(RequestHeaderAuthKey)
-		token_str, err := extractAuthTokenStr(authValue)
+		tokenStr, err := extractAuthTokenStr(authValue)
 		if err != nil {
 			responses.Error(w, http.StatusBadRequest, err.Error())
 
 			return
 		}
 
-		token, err := h.service.getToken(token_str)
+		token, err := m.service.getToken(tokenStr)
 		if err != nil {
 			responses.Error(w, http.StatusBadRequest, err.Error())
 

@@ -1,15 +1,23 @@
 package auth
 
+import (
+	"net/http"
+)
+
 type auth struct {
-	Handler    handler
+	http.Handler
 	Middleware middleware
 }
 
 func New() auth {
-	authService := newService()
+	service := newService()
+	handler := newHandler(service)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("POST /api/auth", handler.CreateAuthToken)
 
 	return auth{
-		Middleware: newMiddleware(authService),
-		Handler:    newHandler(authService),
+		Middleware: newMiddleware(service),
+		Handler:    mux,
 	}
 }

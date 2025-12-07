@@ -30,7 +30,7 @@ func newService(r repo) service {
 	return svc
 }
 
-func (svc *service) GetMultiple(ctx context.Context) (customers []customerReadModel, err error) {
+func (svc *service) GetMultiple(ctx context.Context) (customers []readModel, err error) {
 	customer_sqls, err := svc.repo.SelectAll(ctx)
 	if err != nil {
 		return
@@ -44,7 +44,7 @@ func (svc *service) GetMultiple(ctx context.Context) (customers []customerReadMo
 	return
 }
 
-func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []customerReadModel, err error) {
+func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []readModel, err error) {
 	customer, err := svc.GetSingleById(ctx, id)
 	if err != nil {
 		return
@@ -71,7 +71,7 @@ func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []cu
 	return
 }
 
-func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []customerReadModel, err error) {
+func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []readModel, err error) {
 	customer, err := svc.GetSingleById(ctx, id)
 	if err != nil {
 		return
@@ -94,9 +94,9 @@ func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []cu
 	return
 }
 
-func (svc *service) GetSingleById(ctx context.Context, id int) (customerReadModel, error) {
-	customer := customerReadModel{}
-	empty_customer_sql := customerSQLModel{}
+func (svc *service) GetSingleById(ctx context.Context, id int) (readModel, error) {
+	customer := readModel{}
+	empty_customer_sql := sqlModel{}
 
 	customer_sql, err := svc.repo.SelectSingleById(ctx, id)
 	if err != nil {
@@ -112,7 +112,7 @@ func (svc *service) GetSingleById(ctx context.Context, id int) (customerReadMode
 	return customer, nil
 }
 
-func (svc *service) CreateNewSingle(ctx context.Context, new_customer customerCreateModel) error {
+func (svc *service) CreateNewSingle(ctx context.Context, new_customer createModel) error {
 	if err := svc.repo.InsertSingle(ctx, new_customer); err != nil {
 		if mysql_error, ok := err.(*mysql.MySQLError); ok {
 			if mysql_error.Number == 1062 {
@@ -155,7 +155,7 @@ func (svc *service) ModifySingleAddressById(ctx context.Context, customer_id int
 		return err
 	}
 
-	if uint16(customer_sql.address_id.Int16) != address_id {
+	if uint16(customer_sql.addressId.Int16) != address_id {
 		return errInvalidCustomerAddressMismatch
 	}
 

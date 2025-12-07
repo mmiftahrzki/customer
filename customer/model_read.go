@@ -7,44 +7,40 @@ import (
 	"github.com/mmiftahrzki/customer/customer/address"
 )
 
-type customerAddressReadModel string
-type customerReadModel struct {
+type addressReadModel string
+type readModel struct {
 	Id        int                      `json:"id"`
 	Email     string                   `json:"email" validate:"required, email,max=100"`
 	FullName  string                   `json:"full_name" validate:"required,max=255"`
-	Address   customerAddressReadModel `json:"address"`
+	Address   addressReadModel `json:"address"`
 	CreatedAt time.Time                `json:"created_at"`
 }
 
-func newCustomerReadModel(sql_model customerSQLModel) (customer customerReadModel) {
+func newCustomerReadModel(sql_model sqlModel) (customer readModel) {
 	address_read_model := address.AddressReadModel{}
 
-	if sql_model.customer_id.Valid {
-		customer.Id = int(sql_model.customer_id.Int16)
+	if sql_model.id.Valid {
+		customer.Id = int(sql_model.id.Int16)
 	}
 
 	if sql_model.email.Valid {
 		customer.Email = sql_model.email.String
 	}
 
-	if sql_model.first_name.Valid {
-		customer.FullName = sql_model.first_name.String
+	if sql_model.firstName.Valid {
+		customer.FullName = sql_model.firstName.String
 	}
 
-	if sql_model.last_name.Valid && sql_model.last_name.String != "" {
-		customer.FullName += " " + sql_model.last_name.String
+	if sql_model.lastName.Valid && sql_model.lastName.String != "" {
+		customer.FullName += " " + sql_model.lastName.String
 	}
 
-	if sql_model.address_id.Valid {
-		address_read_model.Id = int(sql_model.address_id.Int16)
+	if sql_model.addressId.Valid {
+		address_read_model.Id = int(sql_model.addressId.Int16)
 	}
 
 	if sql_model.address.Address.Valid {
 		address_read_model.Address = sql_model.address.Address.String
-	}
-
-	if sql_model.address.Address2.Valid {
-		address_read_model.Address2 = sql_model.address.Address2.String
 	}
 
 	if sql_model.address.District.Valid {
@@ -61,14 +57,14 @@ func newCustomerReadModel(sql_model customerSQLModel) (customer customerReadMode
 
 	customer.Address = newAddressReadModel(address_read_model)
 
-	if sql_model.create_date.Valid {
-		customer.CreatedAt = sql_model.create_date.Time
+	if sql_model.createdAt.Valid {
+		customer.CreatedAt = sql_model.createdAt.Time
 	}
 
 	return
 }
 
-func newAddressReadModel(address address.AddressReadModel) customerAddressReadModel {
+func newAddressReadModel(address address.AddressReadModel) addressReadModel {
 	addresses := []string{}
 
 	if address.Address != "" {
@@ -89,5 +85,5 @@ func newAddressReadModel(address address.AddressReadModel) customerAddressReadMo
 
 	address_str := strings.Join(addresses, " ")
 
-	return customerAddressReadModel(address_str)
+	return addressReadModel(address_str)
 }

@@ -28,27 +28,26 @@ func newRepo(db *sql.DB) repo {
 	}
 }
 
-func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
+func (r *repo) SelectAll(ctx context.Context) (sql_models []sqlModel, err error) {
+	var sql_model sqlModel
 
 	sql_query :=
-		`SELECT a.customer_id,
+		`SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
 			b.postal_code
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			JOIN address b ON b.id = a.address_id
 		WHERE a.active = true
-		ORDER BY a.customer_id ASC
+		ORDER BY a.id ASC
 		LIMIT ?`
 
 	rows, err := r.db.QueryContext(ctx, sql_query, limit+1)
@@ -59,16 +58,15 @@ func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, er
 
 	for rows.Next() {
 		err = rows.Scan(
-			&sql_model.customer_id,
+			&sql_model.id,
 			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
+			&sql_model.firstName,
+			&sql_model.lastName,
+			&sql_model.addressId,
 			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
+			&sql_model.createdAt,
+			&sql_model.address.Id,
 			&sql_model.address.Address,
-			&sql_model.address.Address2,
 			&sql_model.address.District,
 			&sql_model.address.CityId,
 			&sql_model.address.PostalCode,
@@ -86,28 +84,27 @@ func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, er
 	return sql_models, nil
 }
 
-func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
+func (r *repo) SelectAllPrev(ctx context.Context, customer readModel) (sql_models []sqlModel, err error) {
+	var sql_model sqlModel
 
 	sql_query :=
-		`SELECT a.customer_id,
+		`SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
 			b.postal_code
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			JOIN address b ON b.id = a.address_id
 		WHERE a.active = TRUE
-			AND a.customer_id < ?
-		ORDER BY a.customer_id DESC
+			AND a.id < ?
+		ORDER BY a.id DESC
       LIMIT ?`
 
 	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit)
@@ -118,16 +115,15 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (s
 
 	for rows.Next() {
 		err = rows.Scan(
-			&sql_model.customer_id,
+			&sql_model.id,
 			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
+			&sql_model.firstName,
+			&sql_model.lastName,
+			&sql_model.addressId,
 			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
+			&sql_model.createdAt,
+			&sql_model.address.Id,
 			&sql_model.address.Address,
-			&sql_model.address.Address2,
 			&sql_model.address.District,
 			&sql_model.address.CityId,
 			&sql_model.address.PostalCode,
@@ -143,28 +139,27 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (s
 	return sql_models, nil
 }
 
-func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
+func (r *repo) SelectAllNext(ctx context.Context, customer readModel) (sql_models []sqlModel, err error) {
+	var sql_model sqlModel
 
 	sql_query :=
-		`SELECT a.customer_id,
+		`SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
 			b.postal_code
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			JOIN address b ON b.id = a.address_id
 		WHERE a.active = TRUE
-			AND a.customer_id > ?
-		ORDER BY a.customer_id ASC
+			AND a.id > ?
+		ORDER BY a.id ASC
 		LIMIT ?`
 
 	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit+1)
@@ -175,16 +170,15 @@ func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (s
 
 	for rows.Next() {
 		err = rows.Scan(
-			&sql_model.customer_id,
+			&sql_model.id,
 			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
+			&sql_model.firstName,
+			&sql_model.lastName,
+			&sql_model.addressId,
 			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
+			&sql_model.createdAt,
+			&sql_model.address.Id,
 			&sql_model.address.Address,
-			&sql_model.address.Address2,
 			&sql_model.address.District,
 			&sql_model.address.CityId,
 			&sql_model.address.PostalCode,
@@ -200,57 +194,55 @@ func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (s
 	return sql_models, nil
 }
 
-func (r *repo) SelectSingleById(ctx context.Context, id int) (customer_sql_model customerSQLModel, err error) {
+func (r *repo) SelectSingleById(ctx context.Context, id int) (sql_model sqlModel, err error) {
 	sql_query := `
-		SELECT a.customer_id,
+		SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
 			b.postal_code
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			JOIN address b ON b.id = a.address_id
 		WHERE a.active = true
-			AND a.customer_id=?`
+			AND a.id=?`
 	rows, err := r.db.QueryContext(ctx, sql_query, id)
 	if err != nil {
-		return customer_sql_model, err
+		return sql_model, err
 	}
 	defer rows.Close()
 
 	if rows.Next() {
 		err = rows.Scan(
-			&customer_sql_model.customer_id,
-			&customer_sql_model.email,
-			&customer_sql_model.first_name,
-			&customer_sql_model.last_name,
-			&customer_sql_model.address_id,
-			&customer_sql_model.active,
-			&customer_sql_model.create_date,
-			&customer_sql_model.address.AddressId,
-			&customer_sql_model.address.Address,
-			&customer_sql_model.address.Address2,
-			&customer_sql_model.address.District,
-			&customer_sql_model.address.CityId,
-			&customer_sql_model.address.PostalCode,
+			&sql_model.id,
+			&sql_model.email,
+			&sql_model.firstName,
+			&sql_model.lastName,
+			&sql_model.addressId,
+			&sql_model.active,
+			&sql_model.createdAt,
+			&sql_model.address.Id,
+			&sql_model.address.Address,
+			&sql_model.address.District,
+			&sql_model.address.CityId,
+			&sql_model.address.PostalCode,
 		)
 		if err != nil {
-			return customer_sql_model, err
+			return sql_model, err
 		}
 	}
 
-	return customer_sql_model, nil
+	return sql_model, nil
 }
 
 func (r *repo) UpdateSingleById(ctx context.Context, id int, payload customerUpdateModel) error {
-	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE customer_id=?"
+	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE id=?"
 	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
 	if err != nil {
 		return err
@@ -272,7 +264,7 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	}
 	defer tx.Rollback()
 
-	sql_query := "DELETE FROM customer a WHERE a.customer_id = ? AND a.created_by = ?"
+	sql_query := "DELETE FROM customer a WHERE a.id = ? AND a.created_by = ?"
 	_, err = tx.ExecContext(ctx, sql_query, id, claim.Email)
 	if err != nil {
 		return err
@@ -281,7 +273,7 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) error {
+func (r *repo) InsertSingle(ctx context.Context, payload createModel) error {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return err
@@ -293,11 +285,10 @@ func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) er
 				first_name,
 				last_name,
 				email,
-				create_date,
-				store_id,
+				created_at,
 				address_id
 			)
-		VALUES (?, ?, ?, ?, ?, ?);`
+		VALUES (?, ?, ?, ?, ?);`
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -305,7 +296,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) er
 	}
 	defer tx.Rollback()
 
-	_, err = tx.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, now, 1, 1)
+	_, err = tx.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, now, 1)
 	if err != nil {
 		return err
 	}
