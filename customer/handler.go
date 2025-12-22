@@ -50,7 +50,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := createModel{}
+	payload := modelCreate{}
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&payload)
 	if err != nil {
@@ -80,7 +80,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[readModel]
+	var res responses.GetMultipleResponse[modelRead]
 
 	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
 		http.NotFound(w, r)
@@ -102,6 +102,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 
 		customers = customers[:limit]
 	}
+
 	res.Data = customers
 
 	responses.WithJson(w, http.StatusOK, res)
@@ -110,7 +111,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetSingleResponse[readModel]
+	var res responses.GetSingleResponse[modelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -142,7 +143,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[readModel]
+	var res responses.GetMultipleResponse[modelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -174,7 +175,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[readModel]
+	var res responses.GetMultipleResponse[modelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -225,7 +226,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := customerUpdateModel{}
+	payload := updateModel{}
 	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
@@ -235,7 +236,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = validatecustomerUpdateModel(payload)
+	err = validate(payload)
 	if err != nil {
 		responses.Error(w, http.StatusBadRequest, err.Error())
 
@@ -303,7 +304,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	payload := address.AddressUpdateModel{}
+	payload := address.ModelUpdate{}
 	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
@@ -313,7 +314,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = address.ValidateAddressUpdateModel(payload)
+	err = payload.Validate()
 	if err != nil {
 		responses.Error(w, http.StatusBadRequest, err.Error())
 

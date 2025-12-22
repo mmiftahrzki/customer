@@ -1,13 +1,13 @@
 package address
 
-type AddressUpdateModel struct {
+type ModelUpdate struct {
 	Address    *string `json:"address"`
 	Address2   *string `json:"address2"`
 	District   *string `json:"district"`
 	PostalCode *string `json:"postal_code"`
 }
 
-func ValidateAddressUpdateModel(m AddressUpdateModel) error {
+func (m ModelUpdate) Validate() error {
 	if m.Address != nil && len(*m.Address) > 50 {
 		return errAddressAddressMoreThan50Chars
 	}

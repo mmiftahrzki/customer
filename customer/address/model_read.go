@@ -1,6 +1,6 @@
 package address
 
-type AddressReadModel struct {
+type ModelRead struct {
 	Id         int    `json:"id"`
 	Address    string `json:"address"`
 	Address2   string `json:"address_2"`

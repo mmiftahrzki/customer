@@ -25,8 +25,7 @@ func main() {
 	defer db.Close()
 
 	app := app.New(cfg.App, db)
-	err = app.Run()
-	if err != nil {
+	if err = app.Run(); err != nil {
 		logger.Panic(err)
 	}
 }

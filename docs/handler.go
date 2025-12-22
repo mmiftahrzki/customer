@@ -1,35 +1,36 @@
 package docs
 
-import (
-	"net/http"
-)
+import "net/http"
 
-func swaggerYAML(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/yaml")
-	w.WriteHeader(http.StatusOK)
-	w.Write(Swagger_yaml)
+type handler struct {
 }
 
-func swaggerJson(w http.ResponseWriter, r *http.Request) {
+func (h handler) SwaggerYAML(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/yaml")
 	w.WriteHeader(http.StatusOK)
-	w.Write(Swagger_json)
+	w.Write(swaggerYAML)
 }
 
-func swaggerCSS(w http.ResponseWriter, r *http.Request) {
+func (h handler) SwaggerJson(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/yaml")
+	w.WriteHeader(http.StatusOK)
+	w.Write(swaggerJSON)
+}
+
+func (h handler) SwaggerCSS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css")
 	w.WriteHeader(http.StatusOK)
-	w.Write(Swagger_ui_css)
+	w.Write(swaggerUICSS)
 }
 
-func swaggerJS(w http.ResponseWriter, r *http.Request) {
+func (h handler) SwaggerJS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/javascript")
 	w.WriteHeader(http.StatusOK)
-	w.Write(Swagger_ui_js)
+	w.Write(swaggerUIJS)
 }
 
-func swagger(w http.ResponseWriter, r *http.Request) {
+func (h handler) Swagger(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	w.Write(Swagger_ui_html)
+	w.Write(swaggerUIHTML)
 }

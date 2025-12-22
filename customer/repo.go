@@ -28,8 +28,8 @@ func newRepo(db *sql.DB) repo {
 	}
 }
 
-func (r *repo) SelectAll(ctx context.Context) (sql_models []sqlModel, err error) {
-	var sql_model sqlModel
+func (r *repo) SelectAll(ctx context.Context) (sql_models []modelSQL, err error) {
+	var sql_model modelSQL
 
 	sql_query :=
 		`SELECT a.id,
@@ -84,8 +84,8 @@ func (r *repo) SelectAll(ctx context.Context) (sql_models []sqlModel, err error)
 	return sql_models, nil
 }
 
-func (r *repo) SelectAllPrev(ctx context.Context, customer readModel) (sql_models []sqlModel, err error) {
-	var sql_model sqlModel
+func (r *repo) SelectAllPrev(ctx context.Context, customer modelRead) (sql_models []modelSQL, err error) {
+	var sql_model modelSQL
 
 	sql_query :=
 		`SELECT a.id,
@@ -139,8 +139,8 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer readModel) (sql_model
 	return sql_models, nil
 }
 
-func (r *repo) SelectAllNext(ctx context.Context, customer readModel) (sql_models []sqlModel, err error) {
-	var sql_model sqlModel
+func (r *repo) SelectAllNext(ctx context.Context, customer modelRead) (sql_models []modelSQL, err error) {
+	var sql_model modelSQL
 
 	sql_query :=
 		`SELECT a.id,
@@ -194,7 +194,7 @@ func (r *repo) SelectAllNext(ctx context.Context, customer readModel) (sql_model
 	return sql_models, nil
 }
 
-func (r *repo) SelectSingleById(ctx context.Context, id int) (sql_model sqlModel, err error) {
+func (r *repo) SelectSingleById(ctx context.Context, id int) (sql_model modelSQL, err error) {
 	sql_query := `
 		SELECT a.id,
 			a.email,
@@ -241,7 +241,7 @@ func (r *repo) SelectSingleById(ctx context.Context, id int) (sql_model sqlModel
 	return sql_model, nil
 }
 
-func (r *repo) UpdateSingleById(ctx context.Context, id int, payload customerUpdateModel) error {
+func (r *repo) UpdateSingleById(ctx context.Context, id int, payload updateModel) error {
 	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE id=?"
 	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
 	if err != nil {
@@ -253,7 +253,7 @@ func (r *repo) UpdateSingleById(ctx context.Context, id int, payload customerUpd
 
 func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	JWTContext := ctx.Value(auth.JWTContextKey)
-	claim, ok := JWTContext.(*auth.AuthClaimModel)
+	claim, ok := JWTContext.(*auth.ModelClaim)
 	if !ok {
 		return errors.New("asd")
 	}
@@ -273,7 +273,7 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *repo) InsertSingle(ctx context.Context, payload createModel) error {
+func (r *repo) InsertSingle(ctx context.Context, payload modelCreate) error {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return err
@@ -304,7 +304,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload createModel) error {
 	return nil
 }
 
-func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint16, payload address.AddressUpdateModel) error {
+func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint16, payload address.ModelUpdate) error {
 	fields := []string{}
 	struct_fields := []any{}
 

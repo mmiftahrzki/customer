@@ -2,7 +2,7 @@ package address
 
 import "database/sql"
 
-type SQLModel struct {
+type ModelSQL struct {
 	Id         sql.NullInt16
 	Address    sql.NullString
 	District   sql.NullString

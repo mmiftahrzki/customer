@@ -8,16 +8,16 @@ import (
 )
 
 type addressReadModel string
-type readModel struct {
-	Id        int                      `json:"id"`
-	Email     string                   `json:"email" validate:"required, email,max=100"`
-	FullName  string                   `json:"full_name" validate:"required,max=255"`
+type modelRead struct {
+	Id        int              `json:"id"`
+	Email     string           `json:"email" validate:"required, email,max=100"`
+	FullName  string           `json:"full_name" validate:"required,max=255"`
 	Address   addressReadModel `json:"address"`
-	CreatedAt time.Time                `json:"created_at"`
+	CreatedAt time.Time        `json:"created_at"`
 }
 
-func newCustomerReadModel(sql_model sqlModel) (customer readModel) {
-	address_read_model := address.AddressReadModel{}
+func newReadModel(sql_model modelSQL) (customer modelRead) {
+	address_read_model := address.ModelRead{}
 
 	if sql_model.id.Valid {
 		customer.Id = int(sql_model.id.Int16)
@@ -64,7 +64,7 @@ func newCustomerReadModel(sql_model sqlModel) (customer readModel) {
 	return
 }
 
-func newAddressReadModel(address address.AddressReadModel) addressReadModel {
+func newAddressReadModel(address address.ModelRead) addressReadModel {
 	addresses := []string{}
 
 	if address.Address != "" {
