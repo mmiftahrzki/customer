@@ -1,11 +1,13 @@
 package customer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
@@ -21,30 +23,62 @@ type handler struct {
 func newHandler(svc service) handler {
 	handler := handler{
 		service: svc,
-		log:     logger.GetLogger().WithField("component", "customer_handler"),
+		log:     logger.GetLogger().WithField("component", "customerHandler"),
 	}
 
 	return handler
 }
 
+func timeoutMiddleware(w http.ResponseWriter, r *http.Request) {
+	var queryTimeout string
+	var timeoutValue int
+	var timeoutDuration time.Duration
+
+	queryTimeout = r.URL.Query().Get("timeout")
+
+	if queryTimeout != "" {
+		var strConvErr error
+
+		timeoutValue, strConvErr = strconv.Atoi(queryTimeout)
+		if strConvErr != nil {
+			responses.Error(w, http.StatusUnprocessableEntity, "invalid timeout duration value")
+
+			return
+		}
+
+		timeoutDuration = time.Duration(timeoutValue) * time.Millisecond
+
+		if timeoutDuration > time.Duration(0) {
+			if timeoutDuration > 30000*time.Millisecond {
+				timeoutDuration = 30000 * time.Millisecond
+			}
+
+			ctxWithTimeout, cancel := context.WithTimeout(r.Context(), timeoutDuration)
+			defer cancel()
+
+			r = r.WithContext(ctxWithTimeout)
+		}
+	}
+}
+
 func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	content_length_str := r.Header.Get("Content-Length")
-	content_length, err := strconv.Atoi(content_length_str)
+	contentLenStr := r.Header.Get("Content-Length")
+	contentLen, err := strconv.Atoi(contentLenStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	if content_length == 0 {
+	if contentLen == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	if content_length > 2048 {
+	if contentLen > 2048 {
 		responses.Error(w, http.StatusRequestEntityTooLarge, "content length cannot be more than 2048")
 
 		return
@@ -82,15 +116,15 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 	var res responses.GetMultipleResponse[modelRead]
 
-	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
-		http.NotFound(w, r)
+	customers, svcErr := h.service.GetMultiple(r.Context())
+	if svcErr != nil {
+		if errors.Is(svcErr, context.DeadlineExceeded) {
+			responses.Error(w, http.StatusServiceUnavailable, "server took too long to respond")
 
-		return
-	}
+			return
+		}
 
-	customers, err := h.service.GetMultiple(r.Context())
-	if err != nil {
-		h.log.Error(err)
+		h.log.Error(svcErr)
 
 		w.WriteHeader(http.StatusInternalServerError)
 
@@ -226,19 +260,12 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := updateModel{}
+	payload := modelUpdate{}
 	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
 
 		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	err = validate(payload)
-	if err != nil {
-		responses.Error(w, http.StatusBadRequest, err.Error())
 
 		return
 	}
@@ -286,7 +313,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 
 	var err error
 
-	customer_id, err := strconv.Atoi(r.PathValue("customer_id"))
+	customerId, err := strconv.Atoi(r.PathValue("customer_id"))
 	if err != nil {
 		h.log.Error(err)
 
@@ -295,7 +322,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	address_id, err := strconv.Atoi(r.PathValue("address_id"))
+	addressId, err := strconv.Atoi(r.PathValue("address_id"))
 	if err != nil {
 		h.log.Error(err)
 
@@ -321,7 +348,7 @@ func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = h.service.ModifySingleAddressById(r.Context(), customer_id, uint16(address_id), payload)
+	err = h.service.ModifySingleAddressById(r.Context(), customerId, uint16(addressId), payload)
 	if err != nil {
 		if errors.Is(err, errCustomerNotFound) || errors.Is(err, errInvalidCustomerAddressMismatch) {
 			responses.WithJson(w, http.StatusUnprocessableEntity, err.Error())

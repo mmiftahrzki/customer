@@ -7,64 +7,65 @@ import (
 	"github.com/mmiftahrzki/customer/customer/address"
 )
 
-type addressReadModel string
+type modelReadAddress string
 type modelRead struct {
 	Id        int              `json:"id"`
 	Email     string           `json:"email" validate:"required, email,max=100"`
 	FullName  string           `json:"full_name" validate:"required,max=255"`
-	Address   addressReadModel `json:"address"`
+	Address   modelReadAddress `json:"address"`
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func newReadModel(sql_model modelSQL) (customer modelRead) {
-	address_read_model := address.ModelRead{}
+func newReadModel(modelSQL modelSQL) modelRead {
+	var customer modelRead
+	var addressModelRead address.ModelRead
 
-	if sql_model.id.Valid {
-		customer.Id = int(sql_model.id.Int16)
+	if modelSQL.id.Valid {
+		customer.Id = int(modelSQL.id.Int16)
 	}
 
-	if sql_model.email.Valid {
-		customer.Email = sql_model.email.String
+	if modelSQL.email.Valid {
+		customer.Email = modelSQL.email.String
 	}
 
-	if sql_model.firstName.Valid {
-		customer.FullName = sql_model.firstName.String
+	if modelSQL.firstName.Valid {
+		customer.FullName = modelSQL.firstName.String
 	}
 
-	if sql_model.lastName.Valid && sql_model.lastName.String != "" {
-		customer.FullName += " " + sql_model.lastName.String
+	if modelSQL.lastName.Valid && modelSQL.lastName.String != "" {
+		customer.FullName += " " + modelSQL.lastName.String
 	}
 
-	if sql_model.addressId.Valid {
-		address_read_model.Id = int(sql_model.addressId.Int16)
+	if modelSQL.addressId.Valid {
+		addressModelRead.Id = int(modelSQL.addressId.Int16)
 	}
 
-	if sql_model.address.Address.Valid {
-		address_read_model.Address = sql_model.address.Address.String
+	if modelSQL.address.Address.Valid {
+		addressModelRead.Address = modelSQL.address.Address.String
 	}
 
-	if sql_model.address.District.Valid {
-		address_read_model.District = sql_model.address.District.String
+	if modelSQL.address.District.Valid {
+		addressModelRead.District = modelSQL.address.District.String
 	}
 
-	if sql_model.address.CityId.Valid {
-		address_read_model.CityId = int(sql_model.address.CityId.Int16)
+	if modelSQL.address.CityId.Valid {
+		addressModelRead.CityId = int(modelSQL.address.CityId.Int16)
 	}
 
-	if sql_model.address.PostalCode.Valid {
-		address_read_model.PostalCode = sql_model.address.PostalCode.String
+	if modelSQL.address.PostalCode.Valid {
+		addressModelRead.PostalCode = modelSQL.address.PostalCode.String
 	}
 
-	customer.Address = newAddressReadModel(address_read_model)
+	customer.Address = newReadModelAddress(addressModelRead)
 
-	if sql_model.createdAt.Valid {
-		customer.CreatedAt = sql_model.createdAt.Time
+	if modelSQL.createdAt.Valid {
+		customer.CreatedAt = modelSQL.createdAt.Time
 	}
 
-	return
+	return customer
 }
 
-func newAddressReadModel(address address.ModelRead) addressReadModel {
+func newReadModelAddress(address address.ModelRead) modelReadAddress {
 	addresses := []string{}
 
 	if address.Address != "" {
@@ -83,7 +84,7 @@ func newAddressReadModel(address address.ModelRead) addressReadModel {
 		addresses = append(addresses, address.PostalCode)
 	}
 
-	address_str := strings.Join(addresses, " ")
+	addressStr := strings.Join(addresses, " ")
 
-	return addressReadModel(address_str)
+	return modelReadAddress(addressStr)
 }

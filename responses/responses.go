@@ -30,7 +30,7 @@ func WithJson(w http.ResponseWriter, code int, data any) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	w.Write(buffer.Bytes())
 }
