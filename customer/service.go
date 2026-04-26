@@ -128,7 +128,7 @@ func (svc *service) CreateNewSingle(ctx context.Context, new_customer modelCreat
 	return nil
 }
 
-func (svc *service) ModifySingleById(ctx context.Context, id int, modified_customer updateModel) error {
+func (svc *service) ModifySingleById(ctx context.Context, id int, modified_customer modelUpdate) error {
 	if _, err := svc.GetSingleById(ctx, id); err != nil {
 		return err
 	}

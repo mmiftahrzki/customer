@@ -3,12 +3,10 @@ package customer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/mmiftahrzki/customer/auth"
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
@@ -241,7 +239,7 @@ func (r *repo) SelectSingleById(ctx context.Context, id int) (sql_model modelSQL
 	return sql_model, nil
 }
 
-func (r *repo) UpdateSingleById(ctx context.Context, id int, payload updateModel) error {
+func (r *repo) UpdateSingleById(ctx context.Context, id int, payload modelUpdate) error {
 	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE id=?"
 	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
 	if err != nil {
@@ -252,20 +250,14 @@ func (r *repo) UpdateSingleById(ctx context.Context, id int, payload updateModel
 }
 
 func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
-	JWTContext := ctx.Value(auth.JWTContextKey)
-	claim, ok := JWTContext.(*auth.ModelClaim)
-	if !ok {
-		return errors.New("asd")
-	}
-
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	sql_query := "DELETE FROM customer a WHERE a.id = ? AND a.created_by = ?"
-	_, err = tx.ExecContext(ctx, sql_query, id, claim.Email)
+	sql_query := "DELETE FROM customer a WHERE a.id = ?"
+	_, err = tx.ExecContext(ctx, sql_query, id)
 	if err != nil {
 		return err
 	}

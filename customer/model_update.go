@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-type updateModel struct {
+type modelUpdate struct {
 	FirstName *string `json:"first_name"`
 	LastName  *string `json:"last_name"`
 	Email     *string `json:"email"`
@@ -13,7 +13,7 @@ type updateModel struct {
 var errCustomerFirstNameNull = errors.New("customer first name is required")
 var errCustomerLastNameNull = errors.New("customer last name is required")
 
-func (m updateModel) validate() error {
+func (m modelUpdate) validate() error {
 	if m.FirstName == nil || len(*m.FirstName) > 45 {
 		return errCustomerFirstNameNull
 	}

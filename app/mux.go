@@ -8,12 +8,13 @@ import (
 	"net/http"
 
 	"github.com/mmiftahrzki/customer/auth"
+	"github.com/mmiftahrzki/customer/config"
 	"github.com/mmiftahrzki/customer/customer"
 	"github.com/mmiftahrzki/customer/docs"
 	"github.com/mmiftahrzki/customer/middleware"
 )
 
-func newMux(db *sql.DB) *http.ServeMux {
+func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 	jwtSigningKey := make([]byte, 256)
 	rand.Read(jwtSigningKey[:])
 	base64Encoded := base64.StdEncoding.EncodeToString(jwtSigningKey)
@@ -21,13 +22,13 @@ func newMux(db *sql.DB) *http.ServeMux {
 
 	appHandler := handler{}
 	mux := http.NewServeMux()
-	auth := auth.New(jwtSigningKey)
+	auth := auth.New(jwtSigningKey, appCfg.AdminEmail)
 	customer := customer.New(db)
 	doc := docs.New()
 
-	deleteSingleById := middleware.ChainMiddleware(customer.Handler.DeleteSingleById, auth.Middleware.VerifyJWT)
-	postSingle := middleware.ChainMiddleware(customer.Handler.PostSingle, auth.Middleware.VerifyJWT)
-	putSingleById := middleware.ChainMiddleware(customer.Handler.PutSingleById, auth.Middleware.VerifyJWT)
+	deleteSingleById := middleware.ChainMiddleware(customer.Handler.DeleteSingleById, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin"))
+	postSingle := middleware.ChainMiddleware(customer.Handler.PostSingle, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin", "user"))
+	putSingleById := middleware.ChainMiddleware(customer.Handler.PutSingleById, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user"))
 	getSingleAndUpdateAddressById := middleware.ChainMiddleware(customer.Handler.GetSingleAndUpdateAddressById, auth.Middleware.VerifyJWT)
 
 	mux.Handle("GET /{$}", appHandler)
@@ -39,7 +40,7 @@ func newMux(db *sql.DB) *http.ServeMux {
 
 	mux.HandleFunc("POST /api/auth", auth.Handler.CreateAuthToken)
 	mux.HandleFunc("POST /api/auth/", auth.Handler.CreateAuthToken)
-	
+
 	mux.HandleFunc("GET /api/customer", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/timeout", customer.Handler.GetMultipleWithTimeOut)

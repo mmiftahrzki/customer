@@ -95,7 +95,7 @@ func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-  select{
+	select {
 	case <-ctx.Done():
 	case <-done:
 	}
@@ -269,19 +269,12 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := updateModel{}
+	payload := modelUpdate{}
 	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
 
 		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	err = validate(payload)
-	if err != nil {
-		responses.Error(w, http.StatusBadRequest, err.Error())
 
 		return
 	}

@@ -23,7 +23,7 @@ func New(cfg config.AppConfig, db *sql.DB) *app {
 		log: app_logger,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.Port),
-			Handler:      newMux(db),
+			Handler:      newMux(db, cfg),
 			WriteTimeout: time.Second * 30,
 			ReadTimeout:  time.Second * 10,
 		},

@@ -14,6 +14,7 @@ import (
 type contextKey int
 type service struct {
 	signingKey []byte
+	adminEmail string
 	log        *logrus.Entry
 }
 
@@ -23,9 +24,10 @@ const RequestHeaderAuthKey string = "Authorization"
 var errEmptyAuth = errors.New("auth: authorization header not found")
 var errInvalidAuth = errors.New("auth: authorization header invalid")
 
-func newService(signingKey []byte) service {
+func newService(signingKey []byte, adminEmail string) service {
 	return service{
 		signingKey: signingKey[:],
+		adminEmail: adminEmail,
 		log:        logger.GetLogger().WithField("component", "auth/service"),
 	}
 }
@@ -48,9 +50,14 @@ func extractAuthTokenStr(auth_value string) (string, error) {
 }
 
 func (s *service) generateJWT(payload ModelCreate) (string, error) {
+	role := "user"
+	if payload.Email == s.adminEmail {
+		role = "admin"
+	}
 	registerdClaims := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute))}
 	claim := ModelClaim{
 		Email:            payload.Email,
+		Role:             role,
 		RegisteredClaims: registerdClaims,
 	}
 
