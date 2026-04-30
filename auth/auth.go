@@ -5,8 +5,8 @@ type auth struct {
 	Middleware middleware
 }
 
-func New(signingKey []byte) auth {
-	service := newService(signingKey)
+func New(signingKey []byte, adminEmail string) auth {
+	service := newService(signingKey, adminEmail)
 	handler := newHandler(service)
 
 	return auth{

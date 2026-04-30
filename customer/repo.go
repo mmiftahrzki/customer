@@ -3,12 +3,10 @@ package customer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/mmiftahrzki/customer/auth"
 	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
@@ -254,19 +252,13 @@ func (r *repo) UpdateSingleById(ctx context.Context, id int, payload modelUpdate
 }
 
 func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
-	JWTContext := ctx.Value(auth.JWTContextKey)
-	claim, ok := JWTContext.(*auth.ModelClaim)
-	if !ok {
-		return errors.New("asd")
-	}
-
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	sqlQuery := "DELETE FROM customer a WHERE a.id = ? AND a.created_by = ?"
+	sqlQuery := "DELETE FROM customer a WHERE a.id = ?"
 	_, err = tx.ExecContext(ctx, sqlQuery, id, claim.Email)
 	if err != nil {
 		return err

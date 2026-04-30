@@ -113,6 +113,47 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request) {
+	var res responses.GetMultipleResponse[modelRead]
+
+	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
+		http.NotFound(w, r)
+
+		return
+	}
+
+	done := make(chan []modelRead)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
+
+	customers, err := h.service.GetMultiple(ctx)
+	if err != nil {
+		h.log.Error(err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	if len(customers) == limit+1 {
+		res.Next = fmt.Sprintf("/api/customer/%d/next", customers[limit-1].Id)
+
+		customers = customers[:limit]
+	}
+
+	res.Data = customers
+
+	responses.WithJson(w, http.StatusOK, res)
+
+	h.log.Info("customers data retrieved successfully")
+}
+
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 	var res responses.GetMultipleResponse[modelRead]
 

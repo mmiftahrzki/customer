@@ -4,6 +4,7 @@ import "github.com/golang-jwt/jwt/v4"
 
 type ModelClaim struct {
 	Email string `json:"email"`
+	Role  string `json:"role"`
 	jwt.RegisteredClaims
 }
 
