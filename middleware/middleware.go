@@ -6,14 +6,16 @@ import (
 
 type Middleware func(http.HandlerFunc) http.HandlerFunc
 
-func ChainMiddleware(handler http.HandlerFunc, middlewares ...Middleware) http.HandlerFunc {
-	var handlers http.HandlerFunc = handler
+func Add(middleware Middleware, hf http.HandlerFunc) http.HandlerFunc {
+	return middleware(hf)
+}
 
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		middleware := middlewares[i]
+func Pipe(middlewares ...Middleware) Middleware {
+	return func(hf http.HandlerFunc) http.HandlerFunc {
+		for i := len(middlewares) - 1; i >= 0; i-- {
+			hf = middlewares[i](hf)
+		}
 
-		handlers = middleware(handlers)
+		return hf
 	}
-
-	return handlers
 }
