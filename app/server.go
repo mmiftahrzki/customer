@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -30,8 +32,23 @@ func New(cfg config.AppConfig, db *sql.DB) *app {
 	}
 }
 
-func (a *app) Run() error {
-	a.log.Infof("Listening on %s", a.server.Addr)
+func (a *app) Run() {
+	a.log.Infof("listening on %s", a.server.Addr)
 
-	return a.server.ListenAndServe()
+	if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		a.log.Fatalln(err)
+	} else {
+		a.log.Infoln("application stopped gracefully")
+	}
+}
+
+func (a *app) Shutdown(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	if err := a.server.Shutdown(ctx); err != nil {
+		a.log.Fatalf("shutdown failed: %v", err)
+	} else {
+		a.log.Infoln("application shutdown")
+	}
 }

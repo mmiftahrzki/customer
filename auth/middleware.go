@@ -79,6 +79,7 @@ func (m *middleware) RequiredRole(roles ...string) pkgMiddleware.Middleware {
 			claim, ok := jwtCtx.(*ModelClaim)
 			if !ok {
 				responses.Error(w, http.StatusUnauthorized, "invalid jwt claims")
+
 				return
 			}
 

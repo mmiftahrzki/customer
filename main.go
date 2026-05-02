@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	_ "embed"
+	"os"
+	"os/signal"
+	"syscall"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/app"
@@ -25,7 +29,15 @@ func main() {
 	defer db.Close()
 
 	app := app.New(cfg.App, db)
-	if err = app.Run(); err != nil {
-		logger.Panic(err)
-	}
+
+	go app.Run()
+
+	stopCh := make(chan os.Signal, 1)
+	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	<-stopCh
+	defer close(stopCh)
+
+	logger.Infoln("Shutting down server...")
+
+	app.Shutdown(context.Background())
 }

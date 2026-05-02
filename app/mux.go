@@ -11,6 +11,7 @@ import (
 	"github.com/mmiftahrzki/customer/config"
 	"github.com/mmiftahrzki/customer/customer"
 	"github.com/mmiftahrzki/customer/docs"
+	"github.com/mmiftahrzki/customer/middleware"
 )
 
 func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
@@ -25,10 +26,19 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 	customer := customer.New(db)
 	doc := docs.New()
 
-	deleteSingleById := middleware.ChainMiddleware(customer.Handler.DeleteSingleById, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin"))
-	postSingle := middleware.ChainMiddleware(customer.Handler.PostSingle, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin", "user"))
-	putSingleById := middleware.ChainMiddleware(customer.Handler.PutSingleById, auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user"))
-	getSingleAndUpdateAddressById := middleware.ChainMiddleware(customer.Handler.GetSingleAndUpdateAddressById, auth.Middleware.VerifyJWT)
+	deleteSingleById := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin")),
+		customer.Handler.DeleteSingleById)
+
+	postSingle := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin", "user")),
+		customer.Handler.PostSingle)
+
+	putSingleById := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user")),
+		customer.Handler.PutSingleById)
+
+	getSingleAndUpdateAddressById := middleware.Add(auth.Middleware.VerifyJWT, customer.Handler.GetSingleAndUpdateAddressById)
 
 	mux.Handle("GET /{$}", appHandler)
 	mux.HandleFunc("GET /swagger-css", doc.Handler.SwaggerCSS)

@@ -259,7 +259,7 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	defer tx.Rollback()
 
 	sqlQuery := "DELETE FROM customer a WHERE a.id = ?"
-	_, err = tx.ExecContext(ctx, sqlQuery, id, claim.Email)
+	_, err = tx.ExecContext(ctx, sqlQuery, id)
 	if err != nil {
 		return err
 	}
