@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -30,8 +29,8 @@ func newService(r repo) service {
 	return svc
 }
 
-func (svc *service) GetMultiple(ctx context.Context) ([]modelRead, error) {
-	var customers []modelRead
+func (svc *service) GetMultiple(ctx context.Context) ([]ModelRead, error) {
+	var customers []ModelRead
 
 	select {
 	case <-ctx.Done():
@@ -53,7 +52,7 @@ func (svc *service) GetMultiple(ctx context.Context) ([]modelRead, error) {
 	return customers, nil
 }
 
-func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []modelRead, err error) {
+func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []ModelRead, err error) {
 	customer, err := svc.GetSingleById(ctx, id)
 	if err != nil {
 		return
@@ -80,7 +79,7 @@ func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []mo
 	return
 }
 
-func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []modelRead, err error) {
+func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []ModelRead, err error) {
 	customer, err := svc.GetSingleById(ctx, id)
 	if err != nil {
 		return
@@ -103,8 +102,8 @@ func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []mo
 	return
 }
 
-func (svc *service) GetSingleById(ctx context.Context, id int) (modelRead, error) {
-	var customer modelRead
+func (svc *service) GetSingleById(ctx context.Context, id int) (ModelRead, error) {
+	var customer ModelRead
 	var emptyCustomerSql modelSQL
 
 	customerSql, repoErr := svc.repo.SelectSingleById(ctx, id)
@@ -160,23 +159,5 @@ func (svc *service) DeleteSingleById(ctx context.Context, id int) error {
 		return ctx.Err()
 	default:
 		return svc.repo.DeleteSingleById(ctx, id)
-	}
-}
-
-func (svc *service) ModifySingleAddressById(ctx context.Context, customerId int, addressId uint16, modifiedCustomerAddress address.ModelUpdate) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		customerSql, repoErr := svc.repo.SelectSingleById(ctx, customerId)
-		if repoErr != nil {
-			return repoErr
-		}
-
-		if uint16(customerSql.addressId.Int16) != addressId {
-			return errInvalidCustomerAddressMismatch
-		}
-
-		return svc.repo.UpdateSingleAddressByCustomerId(ctx, addressId, modifiedCustomerAddress)
 	}
 }

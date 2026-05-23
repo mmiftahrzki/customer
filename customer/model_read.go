@@ -8,7 +8,7 @@ import (
 )
 
 type modelReadAddress string
-type modelRead struct {
+type ModelRead struct {
 	Id        int              `json:"id"`
 	Email     string           `json:"email" validate:"required, email,max=100"`
 	FullName  string           `json:"full_name" validate:"required,max=255"`
@@ -16,8 +16,8 @@ type modelRead struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func newReadModel(modelSQL modelSQL) modelRead {
-	var customer modelRead
+func newReadModel(modelSQL modelSQL) ModelRead {
+	var customer ModelRead
 	var addressModelRead address.ModelRead
 
 	if modelSQL.id.Valid {
@@ -50,10 +50,16 @@ func newReadModel(modelSQL modelSQL) modelRead {
 
 	if modelSQL.address.CityId.Valid {
 		addressModelRead.CityId = int(modelSQL.address.CityId.Int16)
+		addressModelRead.City = modelSQL.address.City.String
 	}
 
 	if modelSQL.address.PostalCode.Valid {
 		addressModelRead.PostalCode = modelSQL.address.PostalCode.String
+	}
+
+	if modelSQL.address.CountryId.Valid {
+		addressModelRead.CountryId = int(modelSQL.address.CountryId.Int16)
+		addressModelRead.Country = modelSQL.address.Country.String
 	}
 
 	customer.Address = newReadModelAddress(addressModelRead)
@@ -82,6 +88,14 @@ func newReadModelAddress(address address.ModelRead) modelReadAddress {
 
 	if address.PostalCode != "" {
 		addresses = append(addresses, address.PostalCode)
+	}
+
+	if address.CityId != 0 {
+		addresses = append(addresses, address.City)
+	}
+
+	if address.CountryId != 0 {
+		addresses = append(addresses, address.Country)
 	}
 
 	addressStr := strings.Join(addresses, " ")
