@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/mmiftahrzki/customer/responses"
 	"github.com/sirupsen/logrus"
@@ -114,7 +113,7 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[modelRead]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
 		http.NotFound(w, r)
@@ -122,7 +121,7 @@ func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	done := make(chan []modelRead)
+	done := make(chan []ModelRead)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
@@ -155,7 +154,7 @@ func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[modelRead]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	customers, svcErr := h.service.GetMultiple(r.Context())
 	if svcErr != nil {
@@ -186,7 +185,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetSingleResponse[modelRead]
+	var res responses.GetSingleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -218,7 +217,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[modelRead]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -250,7 +249,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[modelRead]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -301,8 +300,17 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := modelUpdate{}
+	var payload modelUpdate
 	err = json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		h.log.Error(err)
+
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	err = payload.Validate()
 	if err != nil {
 		h.log.Error(err)
 
@@ -347,62 +355,4 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	var err error
-
-	customerId, err := strconv.Atoi(r.PathValue("customer_id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	addressId, err := strconv.Atoi(r.PathValue("address_id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	payload := address.ModelUpdate{}
-	err = json.NewDecoder(r.Body).Decode(&payload)
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
-
-		return
-	}
-
-	err = payload.Validate()
-	if err != nil {
-		responses.Error(w, http.StatusBadRequest, err.Error())
-
-		return
-	}
-
-	err = h.service.ModifySingleAddressById(r.Context(), customerId, uint16(addressId), payload)
-	if err != nil {
-		if errors.Is(err, errCustomerNotFound) || errors.Is(err, errInvalidCustomerAddressMismatch) {
-			responses.WithJson(w, http.StatusUnprocessableEntity, err.Error())
-
-			return
-		}
-
-		h.log.Error(err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
 }

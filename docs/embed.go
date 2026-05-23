@@ -2,9 +2,6 @@ package docs
 
 import _ "embed"
 
-//go:embed swagger.yaml
-var swaggerYAML []byte
-
 //go:embed swagger.json
 var swaggerJSON []byte
 

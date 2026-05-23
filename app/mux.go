@@ -38,8 +38,6 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user")),
 		customer.Handler.PutSingleById)
 
-	getSingleAndUpdateAddressById := middleware.Add(auth.Middleware.VerifyJWT, customer.Handler.GetSingleAndUpdateAddressById)
-
 	mux.Handle("GET /{$}", appHandler)
 	mux.HandleFunc("GET /swagger-css", doc.Handler.SwaggerCSS)
 	mux.HandleFunc("GET /swagger-js", doc.Handler.SwaggerJS)
@@ -60,7 +58,6 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 	mux.HandleFunc("POST /api/customer", postSingle)
 	mux.HandleFunc("POST /api/customer/", postSingle)
 	mux.HandleFunc("PUT /api/customer/{id}", putSingleById)
-	mux.HandleFunc("PATCH /api/customer/{customer_id}/address/{address_id}", getSingleAndUpdateAddressById)
 	mux.HandleFunc("DELETE /api/customer/{id}", deleteSingleById)
 
 	return mux

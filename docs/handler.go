@@ -5,12 +5,6 @@ import "net/http"
 type handler struct {
 }
 
-func (h handler) SwaggerYAML(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/yaml")
-	w.WriteHeader(http.StatusOK)
-	w.Write(swaggerYAML)
-}
-
 func (h handler) SwaggerJson(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/yaml")
 	w.WriteHeader(http.StatusOK)
