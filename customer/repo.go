@@ -3,13 +3,9 @@ package customer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/mmiftahrzki/customer/auth"
-	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -24,93 +20,108 @@ type repo struct {
 func newRepo(db *sql.DB) repo {
 	return repo{
 		db:  db,
-		log: logger.GetLogger().WithField("component", "customer_repo"),
+		log: logger.GetLogger().WithField("component", "customerRepo"),
 	}
 }
 
-func (r *repo) SelectAll(ctx context.Context) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
-
-	sql_query :=
-		`SELECT a.customer_id,
+func (r *repo) SelectAll(ctx context.Context) ([]modelSQL, error) {
+	var sqlModel modelSQL
+	var sqlModels []modelSQL
+	const sqlQuery string = `
+		SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
-			b.postal_code
+			c.city,
+			b.postal_code,
+			c.country_id,
+			d.country
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			LEFT JOIN address b ON b.id = a.address_id
+			JOIN city c ON c.id = b.city_id
+			JOIN country d ON d.id = c.country_id
 		WHERE a.active = true
-		ORDER BY a.customer_id ASC
+		ORDER BY a.id ASC
 		LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, limit+1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	select {
+	case <-ctx.Done():
+		r.log.Info("deadline exceeded from repo layer")
 
-	for rows.Next() {
-		err = rows.Scan(
-			&sql_model.customer_id,
-			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
-			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
-			&sql_model.address.Address,
-			&sql_model.address.Address2,
-			&sql_model.address.District,
-			&sql_model.address.CityId,
-			&sql_model.address.PostalCode,
-		)
+		return sqlModels, ctx.Err()
+	default:
+		rows, sqlErr := r.db.QueryContext(ctx, sqlQuery, limit+1)
+		if sqlErr != nil {
+			return sqlModels, sqlErr
+		}
+		defer rows.Close()
 
-		if err != nil {
-			return nil, err
+		for rows.Next() {
+			rowScanErr := rows.Scan(
+				&sqlModel.id,
+				&sqlModel.email,
+				&sqlModel.firstName,
+				&sqlModel.lastName,
+				&sqlModel.addressId,
+				&sqlModel.active,
+				&sqlModel.createdAt,
+				&sqlModel.address.Id,
+				&sqlModel.address.Address,
+				&sqlModel.address.District,
+				&sqlModel.address.CityId,
+				&sqlModel.address.City,
+				&sqlModel.address.PostalCode,
+				&sqlModel.address.CountryId,
+				&sqlModel.address.Country,
+			)
+			if rowScanErr != nil {
+				return sqlModels, rowScanErr
+			}
+
+			sqlModels = append(sqlModels, sqlModel)
 		}
 
-		sql_models = append(sql_models, sql_model)
+		r.log.Info("customers data successfully retrieved from database")
+
+		return sqlModels, nil
 	}
-
-	r.log.Info("customers data successfully retrieved from database")
-
-	return sql_models, nil
 }
 
-func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
-
-	sql_query :=
-		`SELECT a.customer_id,
+func (r *repo) SelectAllPrev(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
+	var modelSQL modelSQL
+	const sqlQuery string = `
+		SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
-			b.postal_code
+			c.city,
+			b.postal_code,
+			c.country_id,
+			d.country
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			LEFT JOIN address b ON b.id = a.address_id
+			JOIN city c ON c.id = b.city_id
+			JOIN country d ON d.id = c.country_id
 		WHERE a.active = TRUE
-			AND a.customer_id < ?
-		ORDER BY a.customer_id DESC
+			AND a.id < ?
+		ORDER BY a.id DESC
       LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, customer.Id, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -118,56 +129,61 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer customerReadModel) (s
 
 	for rows.Next() {
 		err = rows.Scan(
-			&sql_model.customer_id,
-			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
-			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
-			&sql_model.address.Address,
-			&sql_model.address.Address2,
-			&sql_model.address.District,
-			&sql_model.address.CityId,
-			&sql_model.address.PostalCode,
+			&modelSQL.id,
+			&modelSQL.email,
+			&modelSQL.firstName,
+			&modelSQL.lastName,
+			&modelSQL.addressId,
+			&modelSQL.active,
+			&modelSQL.createdAt,
+			&modelSQL.address.Id,
+			&modelSQL.address.Address,
+			&modelSQL.address.District,
+			&modelSQL.address.CityId,
+			&modelSQL.address.City,
+			&modelSQL.address.PostalCode,
+			&modelSQL.address.CountryId,
+			&modelSQL.address.Country,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		sql_models = append(sql_models, sql_model)
+		modelSQLs = append(modelSQLs, modelSQL)
 	}
 
-	return sql_models, nil
+	return modelSQLs, nil
 }
 
-func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (sql_models []customerSQLModel, err error) {
-	var sql_model customerSQLModel
-
-	sql_query :=
-		`SELECT a.customer_id,
+func (r *repo) SelectAllNext(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
+	var modelSQL modelSQL
+	const sqlQuery string = `
+		SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
-			b.postal_code
+			c.city,
+			b.postal_code,
+			c.country_id,
+			d.country
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			LEFT JOIN address b ON b.id = a.address_id
+			JOIN city c ON c.id = b.city_id
+			JOIN country d ON d.id = c.country_id
 		WHERE a.active = TRUE
-			AND a.customer_id > ?
-		ORDER BY a.customer_id ASC
+			AND a.id > ?
+		ORDER BY a.id ASC
 		LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, sql_query, customer.Id, limit+1)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, customer.Id, limit+1)
 	if err != nil {
 		return nil, err
 	}
@@ -175,105 +191,148 @@ func (r *repo) SelectAllNext(ctx context.Context, customer customerReadModel) (s
 
 	for rows.Next() {
 		err = rows.Scan(
-			&sql_model.customer_id,
-			&sql_model.email,
-			&sql_model.first_name,
-			&sql_model.last_name,
-			&sql_model.address_id,
-			&sql_model.active,
-			&sql_model.create_date,
-			&sql_model.address.AddressId,
-			&sql_model.address.Address,
-			&sql_model.address.Address2,
-			&sql_model.address.District,
-			&sql_model.address.CityId,
-			&sql_model.address.PostalCode,
+			&modelSQL.id,
+			&modelSQL.email,
+			&modelSQL.firstName,
+			&modelSQL.lastName,
+			&modelSQL.addressId,
+			&modelSQL.active,
+			&modelSQL.createdAt,
+			&modelSQL.address.Id,
+			&modelSQL.address.Address,
+			&modelSQL.address.District,
+			&modelSQL.address.CityId,
+			&modelSQL.address.City,
+			&modelSQL.address.PostalCode,
+			&modelSQL.address.CountryId,
+			&modelSQL.address.Country,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		sql_models = append(sql_models, sql_model)
+		modelSQLs = append(modelSQLs, modelSQL)
 	}
 
-	return sql_models, nil
+	return modelSQLs, nil
 }
 
-func (r *repo) SelectSingleById(ctx context.Context, id int) (customer_sql_model customerSQLModel, err error) {
-	sql_query := `
-		SELECT a.customer_id,
+func (r *repo) SelectSingleById(ctx context.Context, id int) (modelSQL, error) {
+	var modelSQL modelSQL
+	const sqlQuery string = `
+		SELECT a.id,
 			a.email,
 			a.first_name,
 			a.last_name,
 			a.address_id,
 			a.active,
-			a.create_date,
-			b.address_id,
+			a.created_at,
+			b.id,
 			b.address,
-			b.address2,
 			b.district,
 			b.city_id,
-			b.postal_code
+			c.city,
+			b.postal_code,
+			c.country_id,
+			d.country
 		FROM customer a
-			JOIN address b ON b.address_id = a.address_id
+			LEFT JOIN address b ON b.id = a.address_id
+			JOIN city c ON c.id = b.city_id
+			JOIN country d ON d.id = c.country_id
 		WHERE a.active = true
-			AND a.customer_id=?`
-	rows, err := r.db.QueryContext(ctx, sql_query, id)
+			AND a.id=?`
+	rows, err := r.db.QueryContext(ctx, sqlQuery, id)
 	if err != nil {
-		return customer_sql_model, err
+		return modelSQL, err
 	}
 	defer rows.Close()
 
 	if rows.Next() {
 		err = rows.Scan(
-			&customer_sql_model.customer_id,
-			&customer_sql_model.email,
-			&customer_sql_model.first_name,
-			&customer_sql_model.last_name,
-			&customer_sql_model.address_id,
-			&customer_sql_model.active,
-			&customer_sql_model.create_date,
-			&customer_sql_model.address.AddressId,
-			&customer_sql_model.address.Address,
-			&customer_sql_model.address.Address2,
-			&customer_sql_model.address.District,
-			&customer_sql_model.address.CityId,
-			&customer_sql_model.address.PostalCode,
+			&modelSQL.id,
+			&modelSQL.email,
+			&modelSQL.firstName,
+			&modelSQL.lastName,
+			&modelSQL.addressId,
+			&modelSQL.active,
+			&modelSQL.createdAt,
+			&modelSQL.address.Id,
+			&modelSQL.address.Address,
+			&modelSQL.address.District,
+			&modelSQL.address.CityId,
+			&modelSQL.address.City,
+			&modelSQL.address.PostalCode,
+			&modelSQL.address.CountryId,
+			&modelSQL.address.Country,
 		)
 		if err != nil {
-			return customer_sql_model, err
+			return modelSQL, err
 		}
 	}
 
-	return customer_sql_model, nil
+	return modelSQL, nil
 }
 
-func (r *repo) UpdateSingleById(ctx context.Context, id int, payload customerUpdateModel) error {
-	sql_query := "UPDATE customer SET first_name=?, last_name=?, email=? WHERE customer_id=?"
-	_, err := r.db.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, id)
+func (r *repo) UpdateSingleById(ctx context.Context, id int, payload modelUpdate) error {
+	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return err
+	}
+
+	now := time.Now().In(loc).Format(time.RFC3339)
+
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("couldnot begin a transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	const sqlQuerySelectAddressId string = "SELECT address_id FROM customer WHERE id=?"
+	rows, dbErr := tx.QueryContext(ctx, sqlQuerySelectAddressId, id)
+	if dbErr != nil {
+		return dbErr
+	}
+	defer rows.Close()
+
+	addressId := 0
+	for rows.Next() {
+		dbErr = rows.Scan(&addressId)
+
+		if dbErr != nil {
+			return dbErr
+		}
+	}
+
+	const sqlQueryUpdateCustomer string = "UPDATE customer SET first_name=?, last_name=?, email=?, last_update=? WHERE id=?"
+	_, dbErr = tx.ExecContext(ctx, sqlQueryUpdateCustomer, payload.FirstName, payload.LastName, payload.Email, now, id)
+	if dbErr != nil {
+		return dbErr
+	}
+
+	const sqlQueryUpdateAddress string = "UPDATE address SET address=?, district=?, postal_code=?, city_id=?, last_update=? WHERE id=?"
+	_, dbErr = tx.ExecContext(ctx, sqlQueryUpdateAddress, payload.Address.Address, payload.Address.District, payload.Address.PostalCode, payload.Address.CityId, now, addressId)
+	if dbErr != nil {
+		return dbErr
+	}
+
+	dbErr = tx.Commit()
+	if dbErr != nil {
+		return dbErr
 	}
 
 	return nil
 }
 
 func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
-	JWTContext := ctx.Value(auth.JWTContextKey)
-	claim, ok := JWTContext.(*auth.AuthClaimModel)
-	if !ok {
-		return errors.New("asd")
-	}
-
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("could not start a transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	sql_query := "DELETE FROM customer a WHERE a.customer_id = ? AND a.created_by = ?"
-	_, err = tx.ExecContext(ctx, sql_query, id, claim.Email)
+	sqlQuery := "DELETE FROM customer a WHERE a.id = ?"
+	_, err = tx.ExecContext(ctx, sqlQuery, id)
 	if err != nil {
 		return err
 	}
@@ -281,23 +340,22 @@ func (r *repo) DeleteSingleById(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) error {
+func (r *repo) InsertSingle(ctx context.Context, payload modelCreate) error {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return err
 	}
 
-	now := time.Now().In(loc)
-	sql_query :=
+	now := time.Now().In(loc).Format(time.RFC3339)
+	sqlQuery :=
 		`INSERT INTO customer (
 				first_name,
 				last_name,
 				email,
-				create_date,
-				store_id,
+				created_at,
 				address_id
 			)
-		VALUES (?, ?, ?, ?, ?, ?);`
+		VALUES (?, ?, ?, ?, ?);`
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -305,46 +363,7 @@ func (r *repo) InsertSingle(ctx context.Context, payload customerCreateModel) er
 	}
 	defer tx.Rollback()
 
-	_, err = tx.ExecContext(ctx, sql_query, payload.FirstName, payload.LastName, payload.Email, now, 1, 1)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *repo) UpdateSingleAddressByCustomerId(ctx context.Context, id uint16, payload address.AddressUpdateModel) error {
-	fields := []string{}
-	struct_fields := []any{}
-
-	if payload.Address != nil {
-		fields = append(fields, "address=?")
-		struct_fields = append(struct_fields, payload.Address)
-	}
-
-	if payload.Address2 != nil {
-		fields = append(fields, "address2=?")
-		struct_fields = append(struct_fields, payload.Address2)
-	}
-
-	if payload.District != nil {
-		fields = append(fields, "district=?")
-		struct_fields = append(struct_fields, payload.District)
-	}
-
-	if payload.PostalCode != nil {
-		fields = append(fields, "postal_code=?")
-		struct_fields = append(struct_fields, payload.PostalCode)
-	}
-
-	fields = append(fields, "last_update=?")
-	struct_fields = append(struct_fields, time.Now())
-
-	fields_string := strings.Join(fields, ", ")
-	struct_fields = append(struct_fields, id)
-
-	sql_query := fmt.Sprintf("UPDATE address SET %s WHERE address_id=?", fields_string)
-	_, err := r.db.ExecContext(ctx, sql_query, struct_fields...)
+	_, err = tx.ExecContext(ctx, sqlQuery, payload.FirstName, payload.LastName, payload.Email, now, 1)
 	if err != nil {
 		return err
 	}

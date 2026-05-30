@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,28 +14,22 @@ import (
 type contextKey int
 type service struct {
 	signingKey []byte
+	adminEmail string
 	log        *logrus.Entry
 }
 
 const JWTContextKey contextKey = iota
 const RequestHeaderAuthKey string = "Authorization"
 
-var errEmptyAuth = errors.New("authorization header not found")
-var errInvalidAuth = errors.New("invalid authorization header")
+var errEmptyAuth = errors.New("auth: authorization header not found")
+var errInvalidAuth = errors.New("auth: authorization header invalid")
 
-func newService() service {
-	buffer := make([]byte, 256)
-	rand.Read(buffer[:])
-
-	svc := service{
-		signingKey: buffer,
+func newService(signingKey []byte, adminEmail string) service {
+	return service{
+		signingKey: signingKey[:],
+		adminEmail: adminEmail,
 		log:        logger.GetLogger().WithField("component", "auth/service"),
 	}
-
-	base64Encoded := base64.StdEncoding.EncodeToString(buffer)
-	fmt.Println(base64Encoded)
-
-	return svc
 }
 
 func extractAuthTokenStr(auth_value string) (string, error) {
@@ -57,14 +49,19 @@ func extractAuthTokenStr(auth_value string) (string, error) {
 	return token_str, nil
 }
 
-func (s *service) generateJWT(payload AuthCreateModel) (string, error) {
+func (s *service) generateJWT(payload ModelCreate) (string, error) {
+	role := "user"
+	if payload.Email == s.adminEmail {
+		role = "admin"
+	}
 	registerdClaims := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute))}
-	claims := AuthClaimModel{
+	claim := ModelClaim{
 		Email:            payload.Email,
+		Role:             role,
 		RegisteredClaims: registerdClaims,
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claim)
 	signedJWTString, err := token.SignedString(s.signingKey)
 	if err != nil {
 		if errors.Is(err, jwt.ErrInvalidKeyType) {
@@ -93,7 +90,7 @@ func (s *service) getToken(tokenString string) (*jwt.Token, error) {
 		return s.signingKey[:], nil
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &AuthClaimModel{}, keyFunc)
+	token, err := jwt.ParseWithClaims(tokenString, &ModelClaim{}, keyFunc)
 	if err != nil {
 		return token, err
 	}

@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-type AddressCreateModel struct {
+type ModelCreate struct {
 	Address    *string `json:"address"`
 	Address2   *string `json:"address2"`
 	District   *string `json:"district"`
@@ -20,7 +20,7 @@ var errAddressDistrictIsNil = errors.New("district is required")
 var errAddressCityIdIsNil = errors.New("city is required")
 var errAddressPostalCodeMoreThan10Chars = errors.New("postal code cannot be more than 10 characters")
 
-func ValidateAddressCreateModel(m AddressCreateModel) error {
+func (m ModelCreate) Validate() error {
 	if m.Address == nil {
 		return errAddressAddressIsNil
 	}

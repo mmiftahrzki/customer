@@ -1,47 +1,64 @@
 package app
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 
 	"github.com/mmiftahrzki/customer/auth"
+	"github.com/mmiftahrzki/customer/config"
 	"github.com/mmiftahrzki/customer/customer"
 	"github.com/mmiftahrzki/customer/docs"
 	"github.com/mmiftahrzki/customer/middleware"
 )
 
-func chainMiddleware(handler http.HandlerFunc, middlewares ...middleware.Middleware) http.HandlerFunc {
-	var handlers http.HandlerFunc = handler
+func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
+	jwtSigningKey := make([]byte, 256)
+	rand.Read(jwtSigningKey[:])
+	base64Encoded := base64.StdEncoding.EncodeToString(jwtSigningKey)
+	fmt.Println(base64Encoded)
 
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		middleware := middlewares[i]
-
-		handlers = middleware(handlers)
-	}
-
-	return handlers
-}
-
-func newMux(db *sql.DB) *http.ServeMux {
+	appHandler := handler{}
 	mux := http.NewServeMux()
-
-	auth := auth.New()
+	auth := auth.New(jwtSigningKey, appCfg.AdminEmail)
 	customer := customer.New(db)
+	doc := docs.New()
 
-	mux.HandleFunc("GET /{$}", roothandler)
-	mux.Handle("/", docs.NewMux())
+	deleteSingleById := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin")),
+		customer.Handler.DeleteSingleById)
 
-	mux.HandleFunc("/api/auth", auth.Handler.CreateAuthToken)
+	postSingle := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin", "user")),
+		customer.Handler.PostSingle)
 
-	deleteSingleById := chainMiddleware(customer.Handler.DeleteSingleById, auth.Middleware.VerifyJWT)
-	mux.HandleFunc("DELETE /api/customer/{id}", deleteSingleById)
-	mux.HandleFunc("POST /api/customer/", customer.Handler.PostSingle)
+	putSingleById := middleware.Add(
+		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user")),
+		customer.Handler.PutSingleById)
+
+	mux.Handle("GET /{$}", appHandler)
+	mux.HandleFunc("GET /swagger-css", doc.Handler.SwaggerCSS)
+	mux.HandleFunc("GET /swagger-js", doc.Handler.SwaggerJS)
+	mux.HandleFunc("GET /swagger", doc.Handler.SwaggerJson)
+	mux.HandleFunc("GET /restful-api", doc.Handler.Swagger)
+
+	mux.HandleFunc("POST /api/auth", auth.Handler.CreateAuthToken)
+	mux.HandleFunc("POST /api/auth/", auth.Handler.CreateAuthToken)
+
+	mux.HandleFunc("GET /api/customer", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/", customer.Handler.GetMultiple)
+	mux.HandleFunc("GET /api/customer/timeout", customer.Handler.GetMultipleWithTimeOut)
 	mux.HandleFunc("GET /api/customer/{id}", customer.Handler.GetSingleById)
 	mux.HandleFunc("GET /api/customer/{id}/prev", customer.Handler.GetMultiplePrev)
+	mux.HandleFunc("GET /api/customer/{id}/prev/", customer.Handler.GetMultiplePrev)
 	mux.HandleFunc("GET /api/customer/{id}/next", customer.Handler.GetMultipleNext)
-	mux.HandleFunc("PUT /api/customer/{id}", customer.Handler.PutSingleById)
-	mux.HandleFunc("PATCH /api/customer/{customer_id}/address/{address_id}", customer.Handler.GetSingleAndUpdateAddressById)
+	mux.HandleFunc("GET /api/customer/{id}/next/", customer.Handler.GetMultipleNext)
+	mux.HandleFunc("POST /api/customer", postSingle)
+	mux.HandleFunc("POST /api/customer/", postSingle)
+	mux.HandleFunc("PUT /api/customer/{id}", putSingleById)
+	mux.HandleFunc("DELETE /api/customer/{id}", deleteSingleById)
 
 	return mux
 }

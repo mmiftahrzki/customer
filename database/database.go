@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	_ "github.com/go-sql-driver/mysql"
+	asd "github.com/go-sql-driver/mysql"
 	"github.com/mmiftahrzki/customer/config"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/sirupsen/logrus"
@@ -26,20 +26,22 @@ func new(cfg config.DatabaseConfig) (*sql.DB, error) {
 		cfg.Name,
 	)
 
+	err = asd.SetLogger(log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set Logger: %w", err)
+	}
+
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
-		log.Fatalln(err.Error())
-
-		return nil, fmt.Errorf("failed to open a connection to %s", cfg.Host)
+		return nil, fmt.Errorf("failed to open a connection to %s: %w", cfg.Host, err)
 	}
 
 	db.SetMaxOpenConns(cfg.MaxConnection)
 	db.SetMaxIdleConns(cfg.MaxConnection / 2)
 
-	if err = db.Ping(); err != nil {
-		log.Fatalln(err.Error())
-
-		return nil, fmt.Errorf("failed to connect to %s", cfg.Host)
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to %s: %w", cfg.Host, err)
 	}
 
 	return db, nil

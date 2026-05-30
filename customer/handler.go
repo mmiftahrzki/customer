@@ -1,13 +1,14 @@
 package customer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/mmiftahrzki/customer/customer/address"
 	"github.com/mmiftahrzki/customer/logger"
 	"github.com/mmiftahrzki/customer/responses"
 	"github.com/sirupsen/logrus"
@@ -21,34 +22,68 @@ type handler struct {
 func newHandler(svc service) handler {
 	handler := handler{
 		service: svc,
-		log:     logger.GetLogger().WithField("component", "customer_handler"),
+		log:     logger.GetLogger().WithField("component", "customerHandler"),
 	}
 
 	return handler
 }
 
+func timeoutMiddleware(w http.ResponseWriter, r *http.Request) {
+	var queryTimeout string
+	var timeoutValue int
+	var timeoutDuration time.Duration
+
+	queryTimeout = r.URL.Query().Get("timeout")
+
+	if queryTimeout != "" {
+		var strConvErr error
+
+		timeoutValue, strConvErr = strconv.Atoi(queryTimeout)
+		if strConvErr != nil {
+			responses.Error(w, http.StatusUnprocessableEntity, "invalid timeout duration value")
+
+			return
+		}
+
+		timeoutDuration = time.Duration(timeoutValue) * time.Millisecond
+
+		if timeoutDuration > time.Duration(0) {
+			if timeoutDuration > 30000*time.Millisecond {
+				timeoutDuration = 30000 * time.Millisecond
+			}
+
+			ctxWithTimeout, cancel := context.WithTimeout(r.Context(), timeoutDuration)
+			defer cancel()
+
+			r = r.WithContext(ctxWithTimeout)
+		}
+	}
+}
+
 func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
-	content_length_str := r.Header.Get("Content-Length")
-	content_length, err := strconv.Atoi(content_length_str)
+	defer r.Body.Close()
+
+	contentLenStr := r.Header.Get("Content-Length")
+	contentLen, err := strconv.Atoi(contentLenStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	if content_length == 0 {
+	if contentLen == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	if content_length > 2048 {
+	if contentLen > 2048 {
 		responses.Error(w, http.StatusRequestEntityTooLarge, "content length cannot be more than 2048")
 
 		return
 	}
 
-	payload := customerCreateModel{}
+	payload := modelCreate{}
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&payload)
 	if err != nil {
@@ -77,8 +112,8 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+func (h *handler) GetMultipleWithTimeOut(w http.ResponseWriter, r *http.Request) {
+	var res responses.GetMultipleResponse[ModelRead]
 
 	if fmt.Sprintf("%s %s", r.Method, r.RequestURI) != r.Pattern {
 		http.NotFound(w, r)
@@ -86,7 +121,17 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customers, err := h.service.GetMultiple(r.Context())
+	done := make(chan []ModelRead)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
+
+	customers, err := h.service.GetMultiple(ctx)
 	if err != nil {
 		h.log.Error(err)
 
@@ -100,6 +145,38 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 
 		customers = customers[:limit]
 	}
+
+	res.Data = customers
+
+	responses.WithJson(w, http.StatusOK, res)
+
+	h.log.Info("customers data retrieved successfully")
+}
+
+func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
+	var res responses.GetMultipleResponse[ModelRead]
+
+	customers, svcErr := h.service.GetMultiple(r.Context())
+	if svcErr != nil {
+		if errors.Is(svcErr, context.DeadlineExceeded) {
+			responses.Error(w, http.StatusServiceUnavailable, "server took too long to respond")
+
+			return
+		}
+
+		h.log.Error(svcErr)
+
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	if len(customers) == limit+1 {
+		res.Next = fmt.Sprintf("/api/customer/%d/next", customers[limit-1].Id)
+
+		customers = customers[:limit]
+	}
+
 	res.Data = customers
 
 	responses.WithJson(w, http.StatusOK, res)
@@ -108,7 +185,7 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetSingleResponse[customerReadModel]
+	var res responses.GetSingleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -140,7 +217,7 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -172,7 +249,7 @@ func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[customerReadModel]
+	var res responses.GetMultipleResponse[ModelRead]
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -212,6 +289,8 @@ func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		h.log.Error(err)
@@ -221,7 +300,7 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := customerUpdateModel{}
+	var payload modelUpdate
 	err = json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		h.log.Error(err)
@@ -231,9 +310,11 @@ func (h *handler) PutSingleById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = validatecustomerUpdateModel(payload)
+	err = payload.Validate()
 	if err != nil {
-		responses.Error(w, http.StatusBadRequest, err.Error())
+		h.log.Error(err)
+
+		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
@@ -274,60 +355,4 @@ func (h *handler) DeleteSingleById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *handler) GetSingleAndUpdateAddressById(w http.ResponseWriter, r *http.Request) {
-	var err error
-
-	customer_id, err := strconv.Atoi(r.PathValue("customer_id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	address_id, err := strconv.Atoi(r.PathValue("address_id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	payload := address.AddressUpdateModel{}
-	err = json.NewDecoder(r.Body).Decode(&payload)
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
-
-		return
-	}
-
-	err = address.ValidateAddressUpdateModel(payload)
-	if err != nil {
-		responses.Error(w, http.StatusBadRequest, err.Error())
-
-		return
-	}
-
-	err = h.service.ModifySingleAddressById(r.Context(), customer_id, uint16(address_id), payload)
-	if err != nil {
-		if errors.Is(err, errCustomerNotFound) || errors.Is(err, errInvalidCustomerAddressMismatch) {
-			responses.WithJson(w, http.StatusUnprocessableEntity, err.Error())
-
-			return
-		}
-
-		h.log.Error(err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
 }
