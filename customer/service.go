@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"reflect"
 	"sort"
 
 	"github.com/go-sql-driver/mysql"
@@ -70,10 +69,6 @@ func (svc *service) GetMultiplePrev(ctx context.Context, id int) ([]ModelRead, e
 		return nil, err
 	}
 
-	if reflect.ValueOf(customer).IsZero() {
-		return nil, errNotImplemented
-	}
-
 	customerSqls, err := svc.repo.SelectAllPrev(ctx, customer)
 	if err != nil {
 		return nil, err
@@ -101,10 +96,6 @@ func (svc *service) GetMultipleNext(ctx context.Context, id int) ([]ModelRead, e
 	customer, err := svc.CustomerDetails(ctx, id)
 	if err != nil {
 		return nil, err
-	}
-
-	if reflect.ValueOf(customer).IsZero() {
-		return nil, errNotImplemented
 	}
 
 	customerSqls, err := svc.repo.SelectAllNext(ctx, customer)
