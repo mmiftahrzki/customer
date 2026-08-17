@@ -2,6 +2,7 @@ package customer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"sort"
@@ -11,17 +12,25 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type Service interface {
+	CustomerList(ctx context.Context) ([]ModelRead, error)
+	GetMultiplePrev(ctx context.Context, id int) ([]ModelRead, error)
+	GetMultipleNext(ctx context.Context, id int) ([]ModelRead, error)
+
+	CustomerDetails(ctx context.Context, id int) (ModelRead, error)
+
+	RegisterCustomer(ctx context.Context, newCustomer modelCreate) error
+	ModifySingleById(ctx context.Context, id int, modifiedCustomer modelUpdate) error
+	DeleteSingleById(ctx context.Context, id int) error
+}
+
 type service struct {
-	repo repo
+	repo Repo
 	log  *logrus.Entry
 }
 
-var errCustomerAlreadyExists = errors.New("customer already exists")
-var errCustomerNotFound = errors.New("customer not found")
-var errInvalidCustomerAddressMismatch = errors.New("customer address mismatch")
-
-func newService(r repo) service {
-	svc := service{
+func newService(r Repo) Service {
+	svc := &service{
 		repo: r,
 		log:  logger.GetLogger().WithField("component", "customerService"),
 	}
@@ -29,42 +38,45 @@ func newService(r repo) service {
 	return svc
 }
 
-func (svc *service) GetMultiple(ctx context.Context) ([]ModelRead, error) {
-	var customers []ModelRead
+func (svc *service) CustomerList(ctx context.Context) ([]ModelRead, error) {
+	err := ctx.Err()
+	if err != nil {
+		return nil, err
+	}
 
-	select {
-	case <-ctx.Done():
-		svc.log.Info("deadline exceeded from service layer")
+	customers := []ModelRead{}
+	customerSqls, err := svc.repo.SelectAll(ctx)
+	if err != nil {
+		return customers, err
+	}
 
-		return customers, ctx.Err()
-	default:
-		customerSqls, repoErr := svc.repo.SelectAll(ctx)
-		if repoErr != nil {
-			return customers, repoErr
-		}
-
-		for _, customerSql := range customerSqls {
-			customer := newReadModel(customerSql)
-			customers = append(customers, customer)
-		}
+	for _, customerSql := range customerSqls {
+		customer := newReadModel(customerSql)
+		customers = append(customers, customer)
 	}
 
 	return customers, nil
 }
 
-func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []ModelRead, err error) {
-	customer, err := svc.GetSingleById(ctx, id)
+func (svc *service) GetMultiplePrev(ctx context.Context, id int) ([]ModelRead, error) {
+	err := ctx.Err()
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	customers := []ModelRead{}
+	customer, err := svc.CustomerDetails(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
 	if reflect.ValueOf(customer).IsZero() {
-		return nil, errors.New("implement me")
+		return nil, errNotImplemented
 	}
 
 	customerSqls, err := svc.repo.SelectAllPrev(ctx, customer)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	for _, customerSql := range customerSqls {
@@ -76,22 +88,28 @@ func (svc *service) GetMultiplePrev(ctx context.Context, id int) (customers []Mo
 		return customers[i].Id < customers[j].Id
 	})
 
-	return
+	return customers, nil
 }
 
-func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []ModelRead, err error) {
-	customer, err := svc.GetSingleById(ctx, id)
+func (svc *service) GetMultipleNext(ctx context.Context, id int) ([]ModelRead, error) {
+	err := ctx.Err()
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	customers := []ModelRead{}
+	customer, err := svc.CustomerDetails(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
 	if reflect.ValueOf(customer).IsZero() {
-		return nil, errors.New("implement me")
+		return nil, errNotImplemented
 	}
 
 	customerSqls, err := svc.repo.SelectAllNext(ctx, customer)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	for _, customerSql := range customerSqls {
@@ -99,20 +117,24 @@ func (svc *service) GetMultipleNext(ctx context.Context, id int) (customers []Mo
 		customers = append(customers, customer)
 	}
 
-	return
+	return customers, nil
 }
 
-func (svc *service) GetSingleById(ctx context.Context, id int) (ModelRead, error) {
+func (svc *service) CustomerDetails(ctx context.Context, id int) (ModelRead, error) {
 	var customer ModelRead
-	var emptyCustomerSql modelSQL
 
-	customerSql, repoErr := svc.repo.SelectSingleById(ctx, id)
-	if repoErr != nil {
-		return customer, repoErr
+	err := ctx.Err()
+	if err != nil {
+		return customer, err
 	}
 
-	if customerSql == emptyCustomerSql {
-		return customer, errCustomerNotFound
+	customerSql, err := svc.repo.SelectSingleById(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return customer, errCustomerNotFound
+		}
+
+		return customer, err
 	}
 
 	customer = newReadModel(customerSql)
@@ -120,44 +142,47 @@ func (svc *service) GetSingleById(ctx context.Context, id int) (ModelRead, error
 	return customer, nil
 }
 
-func (svc *service) CreateNewSingle(ctx context.Context, newCustomer modelCreate) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		repoErr := svc.repo.InsertSingle(ctx, newCustomer)
-		if repoErr != nil {
-			mysqlErr, ok := repoErr.(*mysql.MySQLError)
-			if ok && mysqlErr.Number == 1062 {
+func (svc *service) RegisterCustomer(ctx context.Context, newCustomer modelCreate) error {
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
+
+	err = svc.repo.InsertSingle(ctx, newCustomer)
+	if err != nil {
+		var mysqlErr *mysql.MySQLError
+
+		if errors.As(err, &mysqlErr) {
+			if mysqlErr.Number == 1062 {
 				return errCustomerAlreadyExists
 			}
-
-			return repoErr
 		}
+
+		return err
 	}
 
 	return nil
 }
 
 func (svc *service) ModifySingleById(ctx context.Context, id int, modifiedCustomer modelUpdate) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		_, err := svc.GetSingleById(ctx, id)
-		if err != nil {
-			return err
-		}
-
-		return svc.repo.UpdateSingleById(ctx, id, modifiedCustomer)
+	err := ctx.Err()
+	if err != nil {
+		return err
 	}
+
+	customer, err := svc.CustomerDetails(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	return svc.repo.UpdateSingleById(ctx, customer.Id, modifiedCustomer)
 }
 
 func (svc *service) DeleteSingleById(ctx context.Context, id int) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return svc.repo.DeleteSingleById(ctx, id)
+	err := ctx.Err()
+	if err != nil {
+		return err
 	}
+
+	return svc.repo.DeleteSingleById(ctx, id)
 }
