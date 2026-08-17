@@ -1,6 +1,6 @@
 # go-restful-api
 
-Showing everyone that I can build RESTful API using Go programming language.
+Simple RESTful API using Go programming language.
 
 # TO-DO Next:
 
@@ -15,6 +15,5 @@ Showing everyone that I can build RESTful API using Go programming language.
 - [x] add fitur middleware
 - [x] add fitur authentication and authorization using JWT Bearer.
 - [x] terapkan authentication di endpoint post, put, dan delete
-- [ ] terapkan authorization role user di endpoint post dan put.
-- [ ] terapkan authorization role admin di endpoint delete.
-- [ ] bikin test files di package customer/address.
+- [x] terapkan authorization role user di endpoint post dan put.
+- [x] terapkan authorization role admin di endpoint delete.
