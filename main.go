@@ -38,6 +38,7 @@ func main() {
 	defer close(stopCh)
 
 	logger.Infoln("Shutting down server...")
+	ctx := context.Background()
 
-	app.Shutdown(context.Background())
+	app.Shutdown(ctx)
 }

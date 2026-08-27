@@ -5,9 +5,13 @@ import (
 )
 
 type customer struct {
-	Handler handler
+	Handler *handler
 }
 
 func New(db *sql.DB) customer {
-	return customer{newHandler(newService(newRepo(db)))}
+	repo := newRepo(db)
+	service := newService(repo)
+	handler := newHandler(service)
+
+	return customer{Handler: &handler}
 }

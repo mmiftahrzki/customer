@@ -49,7 +49,6 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 
 	mux.HandleFunc("GET /api/customer", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/", customer.Handler.GetMultiple)
-	mux.HandleFunc("GET /api/customer/timeout", customer.Handler.GetMultipleWithTimeOut)
 	mux.HandleFunc("GET /api/customer/{id}", customer.Handler.GetSingleById)
 	mux.HandleFunc("GET /api/customer/{id}/prev", customer.Handler.GetMultiplePrev)
 	mux.HandleFunc("GET /api/customer/{id}/prev/", customer.Handler.GetMultiplePrev)
