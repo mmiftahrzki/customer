@@ -60,7 +60,7 @@ func TestRegisterCustomer_Success(t *testing.T) {
 
 	err := svc.RegisterCustomer(t.Context(), payload)
 	if err != nil {
-		t.Fatalf("expected no error got: %v", err)
+		t.Fatalf("expected no error got: %v\n", err)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestRegisterCustomer_DuplicateEmail(t *testing.T) {
 
 	err := svc.RegisterCustomer(t.Context(), payload)
 	if !errors.Is(err, errCustomerAlreadyExists) {
-		t.Fatalf("expected errCustomerAlreadyExists, got: %v", err)
+		t.Fatalf("expected errCustomerAlreadyExists, got: %v\n", err)
 	}
 }
 
@@ -88,7 +88,7 @@ func TestRegisterCustomer_RepositoryError(t *testing.T) {
 
 	err := svc.RegisterCustomer(t.Context(), payload)
 	if !errors.Is(err, repoErr) {
-		t.Fatalf("expected repoErr, got: %v", err)
+		t.Fatalf("expected repoErr, got: %v\n", err)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestRegisterCustomer_ContextCancelled(t *testing.T) {
 	}
 
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("expected contextCanceled, got: %v", err)
+		t.Fatalf("expected contextCanceled, got: %v\n", err)
 	}
 }
 
@@ -135,7 +135,7 @@ func TestCustomerDetails_Success(t *testing.T) {
 	svc := newService(repo)
 	got, err := svc.CustomerDetails(t.Context(), 1)
 	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+		t.Fatalf("expected no error, got: %v\n", err)
 	}
 
 	if got.Id != int(expected.id.Int16) {
@@ -166,7 +166,7 @@ func TestCustomerDetails_NotFound(t *testing.T) {
 	_, err := svc.CustomerDetails(t.Context(), 1)
 
 	if !errors.Is(err, errCustomerNotFound) {
-		t.Fatalf("expected errCustomerNotFound, got: %v", err)
+		t.Fatalf("expected errCustomerNotFound, got: %v\n", err)
 	}
 }
 
@@ -179,7 +179,7 @@ func TestCustomerDetails_RepositoryError(t *testing.T) {
 	svc := newService(repo)
 	_, err := svc.CustomerDetails(t.Context(), 1)
 	if !errors.Is(err, repoErr) {
-		t.Fatalf("expected repoErr, got: %v", err)
+		t.Fatalf("expected repoErr, got: %v\n", err)
 	}
 }
 
@@ -200,6 +200,218 @@ func TestCustomerDetails_ContextCancelled(t *testing.T) {
 	_, err := svc.CustomerDetails(ctx, 1)
 	if repoCalled {
 		t.Fatal("repository should not be called when context is cancelled")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected contextCanceled, got: %v\n", err)
+	}
+}
+
+func TestModifySingleById_Success(t *testing.T) {
+	var gotId int
+	var gotPayload modelUpdate
+
+	repo := &mockRepo{
+		selectSingleByIdFunc: func(ctx context.Context, id int) (modelSQL, error) {
+			return modelSQL{
+				id:        sql.NullInt16{Int16: 1, Valid: true},
+				email:     sql.NullString{String: "john@example.com", Valid: true},
+				firstName: sql.NullString{String: "John", Valid: true},
+				lastName:  sql.NullString{String: "Doe", Valid: true},
+				active:    sql.NullBool{Bool: true, Valid: true},
+				createdAt: sql.NullTime{Time: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+			}, nil
+		},
+		updateSingleByIdFunc: func(ctx context.Context, id int, mu modelUpdate) error {
+			gotId = id
+			gotPayload = mu
+
+			return nil
+		},
+	}
+	svc := newService(repo)
+
+	firstName := "Jane"
+	lastName := "Doe"
+	email := "jane@example.com"
+	payload := modelUpdate{FirstName: &firstName, LastName: &lastName, Email: &email}
+
+	err := svc.ModifySingleById(t.Context(), 1, payload)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v\n", err)
+	}
+
+	if gotId != 1 {
+		t.Errorf("expected update id: 1, got: %v\n", gotId)
+	}
+
+	if gotPayload.FirstName != &firstName {
+		t.Errorf("expected update first name: Jane, got: %v\n", gotPayload.FirstName)
+	}
+
+	if gotPayload.LastName != &lastName {
+		t.Errorf("expected update last name: Doe, got: %v\n", gotPayload.LastName)
+	}
+
+	if gotPayload.Email != &email {
+		t.Errorf("expected update email: jane@example.com, got: %v\n", gotPayload.Email)
+	}
+}
+
+func TestModifySingleById_CustomerNotFound(t *testing.T) {
+	isUpdateCalled := false
+	repo := &mockRepo{
+		selectSingleByIdFunc: func(ctx context.Context, i int) (modelSQL, error) {
+			return modelSQL{}, sql.ErrNoRows
+		},
+		updateSingleByIdFunc: func(ctx context.Context, i int, mu modelUpdate) error {
+			isUpdateCalled = true
+			return nil
+		},
+	}
+	svc := newService(repo)
+	err := svc.ModifySingleById(t.Context(), 1, modelUpdate{})
+	if !errors.Is(err, errCustomerNotFound) {
+		t.Fatalf("expected errCustomerNotFound, got: %v\n", err)
+	}
+
+	if isUpdateCalled {
+		t.Fatalf("update repository should not be called when customer is not found")
+	}
+}
+
+func TestModifySingleById_SelectRepositoryError(t *testing.T) {
+	isUpdateCalled := false
+	repo := &mockRepo{
+		selectSingleByIdFunc: func(ctx context.Context, i int) (modelSQL, error) {
+			return modelSQL{}, repoErr
+		},
+		updateSingleByIdFunc: func(ctx context.Context, i int, mu modelUpdate) error {
+			isUpdateCalled = true
+
+			return nil
+		},
+	}
+	svc := newService(repo)
+	err := svc.ModifySingleById(t.Context(), 1, modelUpdate{})
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repoErr, got: %v\n", err)
+	}
+
+	if isUpdateCalled {
+		t.Fatalf("update repository should not be called when select fails")
+	}
+}
+
+func TestModifySingleById_UpdateRepositoryError(t *testing.T) {
+	repo := &mockRepo{
+		selectSingleByIdFunc: func(ctx context.Context, i int) (modelSQL, error) {
+			return modelSQL{
+				id:        sql.NullInt16{Int16: 1, Valid: true},
+				email:     sql.NullString{String: "john@example.com", Valid: true},
+				firstName: sql.NullString{String: "John", Valid: true},
+				lastName:  sql.NullString{String: "Doe", Valid: true},
+				active:    sql.NullBool{Bool: true, Valid: true},
+				createdAt: sql.NullTime{Time: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+			}, nil
+		},
+		updateSingleByIdFunc: func(ctx context.Context, i int, mu modelUpdate) error {
+			return repoErr
+		},
+	}
+
+	svc := newService(repo)
+	err := svc.ModifySingleById(t.Context(), 1, modelUpdate{})
+
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repoErr, got: %v\n", err)
+	}
+}
+
+func TestModifySingleById_ContextCancelled(t *testing.T) {
+	isSelectCalled := false
+	isUpdateCalled := false
+	repo := &mockRepo{
+		selectSingleByIdFunc: func(ctx context.Context, i int) (modelSQL, error) {
+			isSelectCalled = true
+
+			return modelSQL{}, nil
+		},
+		updateSingleByIdFunc: func(ctx context.Context, i int, mu modelUpdate) error {
+			isUpdateCalled = true
+
+			return nil
+		},
+	}
+	svc := newService(repo)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.ModifySingleById(ctx, 1, modelUpdate{})
+	if isSelectCalled {
+		t.Fatalf("select repository should not be called when operation is cancelled\n")
+	}
+
+	if isUpdateCalled {
+		t.Fatalf("update repository should not be called when operation is cancelled\n")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected contextCanceled, got: %v\n", err)
+	}
+}
+
+func TestDeleteSingleById_Success(t *testing.T) {
+	var gotId int
+	repo := &mockRepo{
+		deleteSingleByIdFunc: func(ctx context.Context, i int) error {
+			gotId = i
+
+			return nil
+		},
+	}
+	svc := newService(repo)
+	err := svc.DeleteSingleById(t.Context(), 1)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v\n", err)
+	}
+
+	if gotId != 1 {
+		t.Errorf("expected delete id: 1, got: %d", gotId)
+	}
+}
+
+func TestDeleteSingleById_RepositoryError(t *testing.T) {
+	repo := &mockRepo{
+		deleteSingleByIdFunc: func(ctx context.Context, i int) error {
+			return repoErr
+		},
+	}
+
+	svc := newService(repo)
+	err := svc.DeleteSingleById(t.Context(), 0)
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repoErr, got: %v\n", err)
+	}
+}
+
+func TestDeleteSingleById_ContextCancelled(t *testing.T) {
+	repoCalled := false
+	repo := &mockRepo{
+		deleteSingleByIdFunc: func(ctx context.Context, i int) error {
+			repoCalled = true
+
+			return nil
+		},
+	}
+	svc := newService(repo)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.DeleteSingleById(ctx, 0)
+	if repoCalled {
+		t.Fatal("delete repository should not be called when operation is cancelled\n")
 	}
 
 	if !errors.Is(err, context.Canceled) {
