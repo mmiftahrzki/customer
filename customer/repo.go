@@ -256,24 +256,16 @@ func (r *repo) UpdateSingleById(ctx context.Context, id int, payload modelUpdate
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("couldnot begin a transaction: %w", err)
+		return fmt.Errorf("could not begin a transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	const sqlQuerySelectAddressId string = "SELECT address_id FROM customer WHERE id=?"
-	rows, err := tx.QueryContext(ctx, sqlQuerySelectAddressId, id)
+	addressId := 0
+	row := tx.QueryRowContext(ctx, sqlQuerySelectAddressId, id)
+	err = row.Scan(&addressId)
 	if err != nil {
 		return err
-	}
-	defer rows.Close()
-
-	addressId := 0
-	for rows.Next() {
-		err = rows.Scan(&addressId)
-
-		if err != nil {
-			return err
-		}
 	}
 
 	const sqlQueryUpdateCustomer string = "UPDATE customer SET first_name=?, last_name=?, email=?, last_update=? WHERE id=?"
