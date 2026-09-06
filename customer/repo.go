@@ -10,12 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const limit int = 25
-
 type Repo interface {
-	SelectAll(ctx context.Context) ([]modelSQL, error)
-	SelectAllPrev(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error)
-	SelectAllNext(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error)
+	SelectAll(ctx context.Context, orderBy string, offset, limit int) ([]modelSQL, error)
 	SelectSingleById(ctx context.Context, id int) (modelSQL, error)
 	InsertSingle(ctx context.Context, payload modelCreate) error
 	UpdateSingleById(ctx context.Context, id int, payload modelUpdate) error
@@ -34,7 +30,7 @@ func newRepo(db *sql.DB) Repo {
 	}
 }
 
-func handleRows(rows *sql.Rows) ([]modelSQL, error) {
+func mapSqlRowsIntoModelSql(rows *sql.Rows) ([]modelSQL, error) {
 	var modelSql modelSQL
 	var modelSqls []modelSQL
 	var err error
@@ -72,49 +68,13 @@ func handleRows(rows *sql.Rows) ([]modelSQL, error) {
 	return modelSqls, nil
 }
 
-func (r *repo) SelectAll(ctx context.Context) ([]modelSQL, error) {
-	const sqlQuery string = `
-		SELECT a.id,
-			a.email,
-			a.first_name,
-			a.last_name,
-			a.address_id,
-			a.active,
-			a.created_at,
-			b.id,
-			b.address,
-			b.district,
-			b.city_id,
-			c.city,
-			b.postal_code,
-			c.country_id,
-			d.country
-		FROM customer a
-			LEFT JOIN address b ON b.id = a.address_id
-			JOIN city c ON c.id = b.city_id
-			JOIN country d ON d.id = c.country_id
-		WHERE a.active = true
-		ORDER BY a.id ASC
-		LIMIT ?`
-
-	rows, err := r.db.QueryContext(ctx, sqlQuery, limit+1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	customers, err := handleRows(rows)
+func (r *repo) SelectAll(ctx context.Context, orderBy string, offset, limit int) ([]modelSQL, error) {
+	err := ctx.Err()
 	if err != nil {
 		return nil, err
 	}
 
-	r.log.Info("customers data successfully retrieved from database")
-
-	return customers, nil
-}
-
-func (r *repo) SelectAllPrev(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
-	const sqlQuery string = `
+	sqlQuery := fmt.Sprintf(`
 		SELECT a.id,
 			a.email,
 			a.first_name,
@@ -135,59 +95,15 @@ func (r *repo) SelectAllPrev(ctx context.Context, customer ModelRead) (modelSQLs
 			JOIN city c ON c.id = b.city_id
 			JOIN country d ON d.id = c.country_id
 		WHERE a.active = TRUE
-			AND a.id < ?
-		ORDER BY a.id DESC
-      LIMIT ?`
+		ORDER BY %s LIMIT ? OFFSET ?;`, orderBy)
 
-	rows, err := r.db.QueryContext(ctx, sqlQuery, customer.Id, limit)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	customers, err := handleRows(rows)
-	if err != nil {
-		return nil, err
-	}
-
-	r.log.Info("customers data successfully retrieved from database")
-
-	return customers, nil
-}
-
-func (r *repo) SelectAllNext(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
-	const sqlQuery string = `
-		SELECT a.id,
-			a.email,
-			a.first_name,
-			a.last_name,
-			a.address_id,
-			a.active,
-			a.created_at,
-			b.id,
-			b.address,
-			b.district,
-			b.city_id,
-			c.city,
-			b.postal_code,
-			c.country_id,
-			d.country
-		FROM customer a
-			LEFT JOIN address b ON b.id = a.address_id
-			JOIN city c ON c.id = b.city_id
-			JOIN country d ON d.id = c.country_id
-		WHERE a.active = TRUE
-			AND a.id > ?
-		ORDER BY a.id ASC
-		LIMIT ?`
-
-	rows, err := r.db.QueryContext(ctx, sqlQuery, customer.Id, limit+1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	customers, err := handleRows(rows)
+	customers, err := mapSqlRowsIntoModelSql(rows)
 	if err != nil {
 		return nil, err
 	}

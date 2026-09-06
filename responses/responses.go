@@ -11,9 +11,7 @@ type GetSingleResponse[T any] struct {
 }
 
 type GetMultipleResponse[T any] struct {
-	Data []T    `json:"data"`
-	Prev string `json:"__prev,omitempty"`
-	Next string `json:"__next,omitempty"`
+	Data []T `json:"data"`
 }
 
 type errorResponse struct {

@@ -28,15 +28,18 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 
 	deleteSingleById := middleware.Add(
 		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin")),
-		customer.Handler.DeleteSingleById)
+		customer.Handler.DeleteSingleById,
+	)
 
 	postSingle := middleware.Add(
 		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("admin", "user")),
-		customer.Handler.PostSingle)
+		customer.Handler.PostSingle,
+	)
 
 	putSingleById := middleware.Add(
 		middleware.Pipe(auth.Middleware.VerifyJWT, auth.Middleware.RequiredRole("user")),
-		customer.Handler.PutSingleById)
+		customer.Handler.PutSingleById,
+	)
 
 	mux.Handle("GET /{$}", appHandler)
 	mux.HandleFunc("GET /swagger-css", doc.Handler.SwaggerCSS)
@@ -50,10 +53,6 @@ func newMux(db *sql.DB, appCfg config.AppConfig) *http.ServeMux {
 	mux.HandleFunc("GET /api/customer", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/", customer.Handler.GetMultiple)
 	mux.HandleFunc("GET /api/customer/{id}", customer.Handler.GetSingleById)
-	mux.HandleFunc("GET /api/customer/{id}/prev", customer.Handler.GetMultiplePrev)
-	mux.HandleFunc("GET /api/customer/{id}/prev/", customer.Handler.GetMultiplePrev)
-	mux.HandleFunc("GET /api/customer/{id}/next", customer.Handler.GetMultipleNext)
-	mux.HandleFunc("GET /api/customer/{id}/next/", customer.Handler.GetMultipleNext)
 	mux.HandleFunc("POST /api/customer", postSingle)
 	mux.HandleFunc("POST /api/customer/", postSingle)
 	mux.HandleFunc("PUT /api/customer/{id}", putSingleById)

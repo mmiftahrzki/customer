@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -82,12 +81,47 @@ func (h *handler) PostSingle(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 	var res responses.GetMultipleResponse[ModelRead]
-	timeout := 30 * time.Second
+	timeout := 15 * time.Second
 
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
-	customers, err := h.service.CustomerList(ctx)
+	queryParams := r.URL.Query()
+
+	sortBy, err := ParseOrderColumn(queryParams.Get("sortBy"))
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, err.Error())
+
+		return
+	}
+
+	sortDirection, err := ParseOrderDirection(queryParams.Get("order"))
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, err.Error())
+
+		return
+	}
+
+	take, err := ParseTake(queryParams.Get("take"))
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, err.Error())
+
+		return
+	}
+
+	page, err := ParsePage(queryParams.Get("page"))
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, err.Error())
+
+		return
+	}
+
+	orderBy := OrderBy{
+		Column:    sortBy,
+		Direction: sortDirection,
+	}
+
+	customers, err := h.service.CustomerList(ctx, take, page, orderBy)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			responses.Error(w, http.StatusServiceUnavailable, "server took too long to respond")
@@ -100,12 +134,6 @@ func (h *handler) GetMultiple(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
-	}
-
-	if len(customers) == limit+1 {
-		res.Next = fmt.Sprintf("/api/customer/%d/next", customers[limit-1].Id)
-
-		customers = customers[:limit]
 	}
 
 	res.Data = customers
@@ -143,78 +171,6 @@ func (h *handler) GetSingleById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res.Data = customer
-
-	responses.WithJson(w, http.StatusOK, res)
-}
-
-func (h *handler) GetMultipleNext(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[ModelRead]
-
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	customers, err := h.service.GetMultipleNext(r.Context(), id)
-	if err != nil {
-		h.log.Error(err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-
-		return
-	}
-
-	if len(customers) == limit+1 {
-		res.Prev = fmt.Sprintf("/api/customer/%d/prev", customers[0].Id)
-		res.Next = fmt.Sprintf("/api/customer/%d/next", customers[limit-1].Id)
-
-		customers = customers[:limit]
-	}
-	res.Data = customers
-
-	responses.WithJson(w, http.StatusOK, res)
-}
-
-func (h *handler) GetMultiplePrev(w http.ResponseWriter, r *http.Request) {
-	var res responses.GetMultipleResponse[ModelRead]
-
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil {
-		h.log.Error(err)
-
-		responses.Error(w, http.StatusBadRequest, "invalid id")
-
-		return
-	}
-
-	customers, err := h.service.GetMultiplePrev(r.Context(), id)
-	if err != nil {
-		h.log.Error(err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-
-		return
-	}
-
-	if len(customers) == limit {
-		res.Prev = fmt.Sprintf("/api/customer/%d/prev", customers[0].Id)
-	}
-
-	if len(customers) > 0 {
-		res.Next = fmt.Sprintf("/api/customer/%d/next", customers[len(customers)-1].Id)
-	}
-
-	if len(customers) < limit {
-		http.Redirect(w, r, "/api/customer", http.StatusSeeOther)
-
-		return
-	}
-
-	res.Data = customers
 
 	responses.WithJson(w, http.StatusOK, res)
 }
