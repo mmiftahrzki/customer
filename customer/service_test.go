@@ -14,9 +14,7 @@ var repoErr = errors.New("database unavailable")
 
 type mockRepo struct {
 	insertSingleFunc     func(context.Context, modelCreate) error
-	selectAllFunc        func(context.Context) ([]modelSQL, error)
-	selectAllPrevFunc    func(context.Context, ModelRead) ([]modelSQL, error)
-	selectAllNextFunc    func(context.Context, ModelRead) ([]modelSQL, error)
+	selectAllFunc        func(context.Context, string, int, int) ([]modelSQL, error)
 	selectSingleByIdFunc func(context.Context, int) (modelSQL, error)
 	updateSingleByIdFunc func(context.Context, int, modelUpdate) error
 	deleteSingleByIdFunc func(context.Context, int) error
@@ -26,16 +24,8 @@ func (m *mockRepo) InsertSingle(ctx context.Context, payload modelCreate) error 
 	return m.insertSingleFunc(ctx, payload)
 }
 
-func (m *mockRepo) SelectAll(ctx context.Context) ([]modelSQL, error) {
-	return m.selectAllFunc(ctx)
-}
-
-func (m *mockRepo) SelectAllPrev(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
-	return m.selectAllPrevFunc(ctx, customer)
-}
-
-func (m *mockRepo) SelectAllNext(ctx context.Context, customer ModelRead) (modelSQLs []modelSQL, err error) {
-	return m.selectAllNextFunc(ctx, customer)
+func (m *mockRepo) SelectAll(ctx context.Context, order string, offset, limit int) ([]modelSQL, error) {
+	return m.selectAllFunc(ctx, order, offset, limit)
 }
 
 func (m *mockRepo) SelectSingleById(ctx context.Context, id int) (modelSQL, error) {
@@ -412,6 +402,126 @@ func TestDeleteSingleById_ContextCancelled(t *testing.T) {
 	err := svc.DeleteSingleById(ctx, 0)
 	if repoCalled {
 		t.Fatal("delete repository should not be called when operation is cancelled\n")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected contextCanceled, got: %v", err)
+	}
+}
+
+func TestCustomerList_Success(t *testing.T) {
+	var gotOrder string
+	var gotOffset int
+	var gotLimit int
+
+	expected := []modelSQL{
+		{
+			id:        sql.NullInt16{Int16: 1, Valid: true},
+			email:     sql.NullString{String: "john@example.com", Valid: true},
+			firstName: sql.NullString{String: "John", Valid: true},
+			lastName:  sql.NullString{String: "Doe", Valid: true},
+			active:    sql.NullBool{Bool: true, Valid: true},
+			createdAt: sql.NullTime{
+				Time:  time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+				Valid: true,
+			},
+		},
+		{
+			id:        sql.NullInt16{Int16: 2, Valid: true},
+			email:     sql.NullString{String: "jane@example.com", Valid: true},
+			firstName: sql.NullString{String: "Jane", Valid: true},
+			lastName:  sql.NullString{String: "Doe", Valid: true},
+			active:    sql.NullBool{Bool: true, Valid: true},
+			createdAt: sql.NullTime{
+				Time:  time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+				Valid: true,
+			},
+		},
+	}
+
+	repo := &mockRepo{
+		selectAllFunc: func(ctx context.Context, order string, offset, limit int) ([]modelSQL, error) {
+			gotOrder = order
+			gotLimit = limit
+			gotOffset = offset
+
+			return expected, nil
+		},
+	}
+	svc := newService(repo)
+	orderBy := OrderBy{Column: Name, Direction: Ascending}
+
+	got, err := svc.CustomerList(t.Context(), 25, 3, orderBy)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if gotOrder != orderBy.String() {
+		t.Errorf("expected order: %s, got: %s", orderBy.String(), gotOrder)
+	}
+
+	if gotOffset != 50 {
+		t.Errorf("expected offset: 50, got: %d", gotOffset)
+	}
+
+	if gotLimit != 25 {
+		t.Errorf("expected limit: 25, got: %d", gotLimit)
+	}
+
+	if len(got) != len(expected) {
+		t.Fatalf("expected %d customers, got: %d", len(expected), len(got))
+	}
+
+	if got[0].Id != int(expected[0].id.Int16) {
+		t.Errorf(
+			"expected first customer id: %d, got: %d",
+			expected[0].id.Int16,
+			got[0].Id,
+		)
+	}
+
+	if got[0].Email != expected[0].email.String {
+		t.Errorf("expected first customer email: %s, got: %s", expected[0].email.String, got[0].Email)
+	}
+
+	if got[0].FullName != "John Doe" {
+		t.Errorf(
+			"expected first customer full name: John Doe, got: %s",
+			got[0].FullName,
+		)
+	}
+}
+
+func TestCustomerList_RepositoryError(t *testing.T) {
+	repo := &mockRepo{
+		selectAllFunc: func(ctx context.Context, order string, offset, limit int) ([]modelSQL, error) {
+			return nil, repoErr
+		},
+	}
+	svc := newService(repo)
+	_, err := svc.CustomerList(t.Context(), 25, 1, OrderBy{})
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repoErr, got: %v", err)
+	}
+}
+
+func TestCustomerList_ContextCancelled(t *testing.T) {
+	repoCalled := false
+	repo := &mockRepo{
+		selectAllFunc: func(ctx context.Context, order string, offset, limit int) ([]modelSQL, error) {
+			repoCalled = true
+
+			return []modelSQL{}, nil
+		},
+	}
+	svc := newService(repo)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.CustomerList(ctx, 25, 3, OrderBy{})
+	if repoCalled {
+		t.Fatal("customer list repository should not be called when operation is cancelled\n")
 	}
 
 	if !errors.Is(err, context.Canceled) {
